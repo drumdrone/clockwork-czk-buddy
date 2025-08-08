@@ -18,6 +18,7 @@ interface DayRecord {
 const Index = () => {
   const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [hourlyRate, setHourlyRate] = useState<number>(300);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
   // Load data from localStorage
   useEffect(() => {
@@ -49,11 +50,11 @@ const Index = () => {
         </div>
         
         <TabsContent value="tracker" className="mt-0">
-          <WorkHoursTable />
+          <WorkHoursTable selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />
         </TabsContent>
         
         <TabsContent value="stats" className="mt-0">
-          <MonthlyStats records={records} hourlyRate={hourlyRate} />
+          <MonthlyStats records={records} hourlyRate={hourlyRate} selectedMonth={selectedMonth} />
         </TabsContent>
       </Tabs>
     </div>

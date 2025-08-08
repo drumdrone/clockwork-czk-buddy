@@ -23,9 +23,10 @@ interface DayRecord {
 interface MonthlyStatsProps {
   records: { [key: string]: DayRecord };
   hourlyRate: number;
+  selectedMonth: Date;
 }
 
-const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
+const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, selectedMonth }) => {
   const [monthlyGoal, setMonthlyGoal] = useState<number>(() => {
     const saved = localStorage.getItem('monthlyGoal');
     return saved ? parseFloat(saved) : 50000;
@@ -52,11 +53,10 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
   };
 
   const getDailyStats = () => {
-    const currentMonth = new Date();
     const currentMonthRecords = Object.values(records).filter(record => {
       const recordDate = new Date(record.date);
-      return recordDate.getMonth() === currentMonth.getMonth() && 
-             recordDate.getFullYear() === currentMonth.getFullYear();
+      return recordDate.getMonth() === selectedMonth.getMonth() && 
+             recordDate.getFullYear() === selectedMonth.getFullYear();
     });
 
     return currentMonthRecords
@@ -110,7 +110,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Calendar className="h-6 w-6 text-primary" />
-              Daily Work Summary - {format(new Date(), 'MMMM yyyy')}
+              Daily Work Summary - {format(selectedMonth, 'MMMM yyyy')}
             </CardTitle>
             <Button onClick={exportToGoogleSheets} className="flex items-center gap-2">
               <Download className="h-4 w-4" />

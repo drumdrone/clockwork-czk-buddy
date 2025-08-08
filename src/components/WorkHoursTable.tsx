@@ -20,7 +20,12 @@ interface DayRecord {
   pausedTime?: number;
 }
 
-const WorkHoursTable: React.FC = () => {
+interface WorkHoursTableProps {
+  selectedMonth: Date;
+  setSelectedMonth: (month: Date) => void;
+}
+
+const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelectedMonth }) => {
   const [hourlyRate, setHourlyRate] = useState<number>(300);
   const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -29,7 +34,6 @@ const WorkHoursTable: React.FC = () => {
     return saved ? parseFloat(saved) : 8;
   });
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
   const currentMonth = selectedMonth;
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -362,19 +366,19 @@ const WorkHoursTable: React.FC = () => {
           </div>
 
 
-          <div className="overflow-x-auto">
+          <div className="relative max-h-[600px] overflow-auto">
             <Table>
-              <TableHeader className="sticky top-0 z-10 bg-background">
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-24 bg-muted/50">Date</TableHead>
-                  <TableHead className="w-32 bg-muted/50">Actions</TableHead>
-                  <TableHead className="w-28 bg-muted/50">Start Time</TableHead>
-                  <TableHead className="w-28 bg-muted/50">End Time</TableHead>
-                  <TableHead className="w-32 bg-muted/50">Est. End Time</TableHead>
-                  <TableHead className="w-24 bg-muted/50">Hours</TableHead>
-                  <TableHead className="w-28 bg-muted/50">Earnings</TableHead>
-                  <TableHead className="w-24 bg-muted/50">Needed/Day</TableHead>
-                  <TableHead className="w-20 bg-muted/50">Status</TableHead>
+              <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
+                <TableRow className="bg-muted/80 backdrop-blur-sm">
+                  <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Date</TableHead>
+                  <TableHead className="w-32 bg-muted/80 backdrop-blur-sm border-b">Actions</TableHead>
+                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">Start Time</TableHead>
+                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">End Time</TableHead>
+                  <TableHead className="w-32 bg-muted/80 backdrop-blur-sm border-b">Est. End Time</TableHead>
+                  <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Hours</TableHead>
+                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">Earnings</TableHead>
+                  <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Needed/Day</TableHead>
+                  <TableHead className="w-20 bg-muted/80 backdrop-blur-sm border-b">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
