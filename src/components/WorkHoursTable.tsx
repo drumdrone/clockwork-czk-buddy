@@ -83,7 +83,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     if (savedRate) {
       setHourlyRate(Number(savedRate));
     }
-  }, []);
+  }, [setRecords, setHourlyRate]);
 
   // Save data to localStorage
   useEffect(() => {
@@ -95,6 +95,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   // Initialize days for current month
   useEffect(() => {
     const newRecords = { ...records };
+    let hasNewDays = false;
     
     for (let i = 0; i < daysInMonth; i++) {
       const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
@@ -111,11 +112,14 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           pausedTime: 0,
           interrupts: [],
         };
+        hasNewDays = true;
       }
     }
     
-    setRecords(newRecords);
-  }, [daysInMonth, monthStart]);
+    if (hasNewDays) {
+      setRecords(newRecords);
+    }
+  }, [daysInMonth, monthStart, setRecords]);
 
   const calculateWorkedHours = useCallback((startTime: string, endTime?: string, pausedTime: number = 0): number => {
     if (!startTime) return 0;
