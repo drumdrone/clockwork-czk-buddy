@@ -251,12 +251,6 @@ const WorkHoursTable: React.FC = () => {
   const totalEarnings = Object.values(records).reduce((sum, record) => sum + record.earnings, 0);
   const totalHours = Object.values(records).reduce((sum, record) => sum + record.workedHours, 0);
 
-  // Today's hours for daily goal calculation
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const todayRecord = records[today];
-  const todayHours = todayRecord ? todayRecord.workedHours : 0;
-  const remainingHoursToday = Math.max(0, dailyHoursGoal - todayHours);
-
   // Monthly goal calculations
   const monthlyGoal = parseFloat(localStorage.getItem('monthlyGoal') || '50000');
   const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
@@ -270,6 +264,13 @@ const WorkHoursTable: React.FC = () => {
   }).filter(day => !isWeekend(day));
   
   const hoursPerWorkingDay = remainingWorkingDays.length > 0 ? remainingHours / remainingWorkingDays.length : 0;
+
+  // Generate weekly calendar with daily hours needed
+  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const dailyHoursDisplay = weekDays.map(day => ({
+    day,
+    hours: hoursPerWorkingDay
+  }));
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -327,46 +328,28 @@ const WorkHoursTable: React.FC = () => {
             </Card>
           </div>
 
-          {/* Daily Goal Summary */}
+          {/* Monthly Hours Summary */}
           <Card className="border-orange-500/20 bg-orange-500/5 mb-6">
             <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-orange-500" />
-                    <span className="font-medium">Hours left today:</span>
-                    <span className="text-lg font-semibold text-orange-500">
-                      {remainingHoursToday > 0 ? formatHours(remainingHoursToday) : 'Goal reached! 🎉'}
-                    </span>
-                  </div>
-                  
-                  {isEditingDailyGoal ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        step="0.5"
-                        value={dailyHoursGoal}
-                        onChange={(e) => setDailyHoursGoal(Number(e.target.value))}
-                        onBlur={() => setIsEditingDailyGoal(false)}
-                        onKeyDown={(e) => e.key === 'Enter' && setIsEditingDailyGoal(false)}
-                        className="w-20 h-8"
-                        autoFocus
-                      />
-                      <span className="text-sm">h/day</span>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-orange-500" />
+                  <span className="font-medium">Hours left this month:</span>
+                  <span className="text-lg font-semibold text-orange-500">
+                    {remainingHours > 0 ? formatHours(remainingHours) : 'Goal reached! 🎉'}
+                  </span>
+                </div>
+                
+                {/* Weekly Calendar */}
+                <div className="grid grid-cols-5 gap-2">
+                  {dailyHoursDisplay.map(({ day, hours }) => (
+                    <div key={day} className="text-center p-2 bg-background/50 rounded">
+                      <div className="text-xs text-muted-foreground">{day.slice(0, 3).toUpperCase()}</div>
+                      <div className="text-sm font-semibold text-orange-500">
+                        {hours > 0 ? formatHours(hours) : '-'}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Goal: {formatHours(dailyHoursGoal)}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsEditingDailyGoal(true)}
-                        className="h-6 w-6 p-0"
-                      >
-                        <Edit2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
             </CardContent>
@@ -507,7 +490,7 @@ const WorkHoursTable: React.FC = () => {
                         <TableCell className="font-medium">
                           {(() => {
                             const dateObj = addDays(monthStart, i);
-                            const isFutureDate = isFuture(dateObj) || format(dateObj, 'yyyy-MM-dd') === today;
+                            const isFutureDate = isFuture(dateObj) || format(dateObj, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                             const isWorkingDay = !isWeekend(dateObj);
                             
                             if (isFutureDate && isWorkingDay && hoursPerWorkingDay > 0) {
