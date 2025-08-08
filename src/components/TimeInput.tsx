@@ -72,7 +72,10 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
     setMinutes(val);
-    updateTimeValue(hours, val);
+    
+    // If we have minutes, ensure we have hours (default to current hours or 00)
+    const currentHours = hours || '00';
+    updateTimeValue(currentHours, val);
     
     // Auto-jump to next time input when minutes are filled
     if (val.length === 2 && onNextFocus) {
@@ -112,17 +115,11 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   const handleHoursFocus = () => {
     // Clear hours field when focused for fresh input
     setHours('');
-    if (hoursRef.current) {
-      hoursRef.current.select();
-    }
   };
 
   const handleMinutesFocus = () => {
-    // Clear minutes field when focused for fresh input
+    // Clear minutes field when focused for fresh input  
     setMinutes('');
-    if (minutesRef.current) {
-      minutesRef.current.select();
-    }
   };
 
   const handleHoursBlur = () => {
