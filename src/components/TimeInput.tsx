@@ -73,6 +73,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
 
   const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setIsEditing(true); // Set editing mode when user types
     setMinutes(val);
     
     // Auto-jump to next time input when minutes are filled
@@ -160,7 +161,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
       <Input
         ref={hoursRef}
         type="text"
-        value={hours}
+        value={isEditing ? hours : (hours || '')}
         onChange={handleHoursChange}
         onKeyDown={handleHoursKeyDown}
         onFocus={handleHoursFocus}
@@ -173,7 +174,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
       <Input
         ref={minutesRef}
         type="text"
-        value={minutes}
+        value={isEditing ? minutes : (minutes || '')}
         onChange={handleMinutesChange}
         onKeyDown={handleMinutesKeyDown}
         onFocus={handleMinutesFocus}
