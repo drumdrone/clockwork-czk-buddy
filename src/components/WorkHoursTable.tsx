@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Play, Square, Calendar, CreditCard, Target } from 'lucide-react';
 import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
+import TimeInput from './TimeInput';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
 
 interface TimeInterval {
@@ -469,11 +470,10 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                         {record.isWorking ? (
                           record.startTime || '-'
                         ) : (
-                          <Input
-                            type="time"
+                          <TimeInput
                             value={record.startTime || ''}
-                            onChange={(e) => updateStartTime(date, e.target.value)}
-                            className="w-full h-8 text-sm font-mono"
+                            onChange={(value) => updateStartTime(date, value)}
+                            className="w-full"
                             placeholder="--:--"
                           />
                         )}
@@ -483,22 +483,20 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                         {record.isWorking ? (
                           format(currentTime, 'HH:mm')
                         ) : (
-                          <Input
-                            type="time"
+                          <TimeInput
                             value={record.endTime || ''}
-                            onChange={(e) => updateEndTime(date, e.target.value)}
-                            className="w-full h-8 text-sm font-mono"
+                            onChange={(value) => updateEndTime(date, value)}
+                            className="w-full"
                             placeholder="--:--"
                           />
                         )}
                       </TableCell>
                       
                       <TableCell>
-                        <Input
-                          type="time"
+                        <TimeInput
                           value={record.estimatedEndTime}
-                          onChange={(e) => updateEstimatedEndTime(date, e.target.value)}
-                          className="w-full h-8 text-sm"
+                          onChange={(value) => updateEstimatedEndTime(date, value)}
+                          className="w-full"
                         />
                       </TableCell>
                       
