@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Calendar, CreditCard, Target, Clock } from 'lucide-react';
+import { Play, Square, Calendar, CreditCard, Target } from 'lucide-react';
 import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
@@ -344,7 +344,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
             <Card className="border-success/20 bg-success/5">
               <CardContent className="pt-4">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-success" />
+                  <Target className="h-5 w-5 text-success" />
                   <div>
                     <p className="text-sm text-muted-foreground">Total Hours</p>
                     <p className="text-lg font-semibold text-success">{formatHours(totalHours)}</p>
