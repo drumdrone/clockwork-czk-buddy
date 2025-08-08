@@ -72,6 +72,7 @@ const Index = () => {
         <TabsContent value="calendar" className="mt-0">
           <MonthlyCalendar 
             selectedMonth={selectedMonth}
+            setSelectedMonth={setSelectedMonth}
             records={records}
           />
         </TabsContent>
