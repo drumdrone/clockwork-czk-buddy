@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Download, Calendar, Clock, CreditCard, TrendingUp } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Download, Calendar, Clock, CreditCard, TrendingUp, Target, Edit2 } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend } from 'date-fns';
 
 interface DayRecord {
   date: string;
@@ -24,6 +26,16 @@ interface MonthlyStatsProps {
 }
 
 const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
+  const [monthlyGoal, setMonthlyGoal] = useState<number>(() => {
+    const saved = localStorage.getItem('monthlyGoal');
+    return saved ? parseFloat(saved) : 50000;
+  });
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('monthlyGoal', monthlyGoal.toString());
+  }, [monthlyGoal]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
       style: 'currency',
@@ -76,6 +88,20 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
   const dailyStats = getDailyStats();
   const totalHours = dailyStats.reduce((sum, record) => sum + record.workedHours, 0);
   const totalEarnings = dailyStats.reduce((sum, record) => sum + record.earnings, 0);
+
+  // Goal calculations
+  const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
+  const remainingHours = remainingEarnings / hourlyRate;
+  
+  // Calculate working days from today to end of month (Monday-Friday only)
+  const today = new Date();
+  const endOfCurrentMonth = endOfMonth(today);
+  const remainingDays = eachDayOfInterval({
+    start: today,
+    end: endOfCurrentMonth
+  }).filter(day => !isWeekend(day));
+  
+  const hoursPerWorkingDay = remainingDays.length > 0 ? remainingHours / remainingDays.length : 0;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -131,6 +157,86 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Monthly Goal */}
+          <Card className="border-orange-500/20 bg-orange-500/5 mb-6">
+            <CardContent className="pt-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-orange-500" />
+                    <h3 className="text-lg font-semibold">Monthly Goal</h3>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingGoal(!isEditingGoal)}
+                    className="text-orange-500 hover:text-orange-600"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Goal</Label>
+                    {isEditingGoal ? (
+                      <Input
+                        type="number"
+                        value={monthlyGoal}
+                        onChange={(e) => setMonthlyGoal(Number(e.target.value))}
+                        onBlur={() => setIsEditingGoal(false)}
+                        onKeyDown={(e) => e.key === 'Enter' && setIsEditingGoal(false)}
+                        className="mt-1"
+                        autoFocus
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold text-orange-500 mt-1">
+                        {formatCurrency(monthlyGoal)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Remaining</Label>
+                    <p className="text-lg font-semibold mt-1">
+                      {formatCurrency(remainingEarnings)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Hours Needed</Label>
+                    <p className="text-lg font-semibold mt-1">
+                      {formatHours(remainingHours)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm text-muted-foreground">
+                      Hours/Day ({remainingDays.length} working days left)
+                    </Label>
+                    <p className="text-lg font-semibold mt-1">
+                      {formatHours(hoursPerWorkingDay)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progress</span>
+                    <span>{((totalEarnings / monthlyGoal) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, (totalEarnings / monthlyGoal) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Daily Cards */}
           <div className="space-y-4">
