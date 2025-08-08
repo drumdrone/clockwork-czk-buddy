@@ -34,15 +34,18 @@ interface WorkHoursTableProps {
   setSelectedMonth: (month: Date) => void;
   records: { [key: string]: DayRecord };
   setRecords: (records: { [key: string]: DayRecord }) => void;
+  hourlyRate: number;
+  setHourlyRate: (rate: number) => void;
 }
 
 const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ 
   selectedMonth, 
   setSelectedMonth, 
   records, 
-  setRecords 
+  setRecords,
+  hourlyRate,
+  setHourlyRate 
 }) => {
-  const [hourlyRate, setHourlyRate] = useState<number>(300);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dailyHoursGoal, setDailyHoursGoal] = useState<number>(() => {
     const saved = localStorage.getItem('dailyHoursGoal');
@@ -273,7 +276,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return `${h}h ${m}m`;
   };
 
-  const totalEarnings = Object.values(records).reduce((sum, record) => sum + record.earnings, 0);
+  // Recalculate earnings based on current hourly rate instead of using stored earnings
+  const totalEarnings = Object.values(records).reduce((sum, record) => sum + (record.workedHours * hourlyRate), 0);
   const totalHours = Object.values(records).reduce((sum, record) => sum + record.workedHours, 0);
 
   // Monthly goal calculations
@@ -499,7 +503,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                       </TableCell>
                       
                       <TableCell className="font-medium text-primary">
-                        {record.earnings > 0 ? formatCurrency(record.earnings) : '-'}
+                        {record.workedHours > 0 ? formatCurrency(record.workedHours * hourlyRate) : '-'}
                       </TableCell>
                        
                         <TableCell className="font-medium text-xs">

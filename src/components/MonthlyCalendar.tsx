@@ -23,9 +23,10 @@ interface MonthlyCalendarProps {
   setSelectedMonth: (month: Date) => void;
   records: { [key: string]: DayRecord };
   setRecords: (records: { [key: string]: DayRecord }) => void;
+  hourlyRate: number;
 }
 
-const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSelectedMonth, records, setRecords }) => {
+const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSelectedMonth, records, setRecords, hourlyRate }) => {
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);
   
@@ -73,10 +74,10 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
   });
 
   const totalHours = monthlyRecords.reduce((sum, record) => sum + record.workedHours, 0);
-  const totalEarnings = monthlyRecords.reduce((sum, record) => sum + record.earnings, 0);
+  // Recalculate earnings based on current hourly rate instead of using stored earnings
+  const totalEarnings = monthlyRecords.reduce((sum, record) => sum + (record.workedHours * hourlyRate), 0);
   
   // Monthly goal calculations
-  const hourlyRate = 300; // You might want to pass this as a prop
   const monthlyGoal = parseFloat(localStorage.getItem('monthlyGoal') || '50000');
   const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
   const remainingHours = remainingEarnings / hourlyRate;
@@ -247,9 +248,9 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
                     )}
                     
                     {/* Earnings */}
-                    {dayData.earnings > 0 && (
+                    {dayData.workedHours > 0 && (
                       <div className="text-xs bg-success/10 text-success px-2 py-1 rounded font-medium">
-                        {formatCurrency(dayData.earnings)}
+                        {formatCurrency(dayData.workedHours * hourlyRate)}
                       </div>
                     )}
                     

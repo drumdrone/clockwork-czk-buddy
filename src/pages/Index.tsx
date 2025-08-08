@@ -66,6 +66,8 @@ const Index = () => {
             setSelectedMonth={setSelectedMonth}
             records={records}
             setRecords={setRecords}
+            hourlyRate={hourlyRate}
+            setHourlyRate={setHourlyRate}
           />
         </TabsContent>
         
@@ -75,6 +77,7 @@ const Index = () => {
             setSelectedMonth={setSelectedMonth}
             records={records}
             setRecords={setRecords}
+            hourlyRate={hourlyRate}
           />
         </TabsContent>
         

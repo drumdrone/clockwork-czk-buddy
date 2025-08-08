@@ -72,7 +72,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
         record.date,
         format(new Date(record.date), 'EEEE'),
         record.workedHours.toFixed(2),
-        record.earnings.toFixed(0),
+        (record.workedHours * hourlyRate).toFixed(0),
         record.startTime || '',
         record.endTime || ''
       ])
@@ -87,7 +87,8 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
 
   const dailyStats = getDailyStats();
   const totalHours = dailyStats.reduce((sum, record) => sum + record.workedHours, 0);
-  const totalEarnings = dailyStats.reduce((sum, record) => sum + record.earnings, 0);
+  // Recalculate earnings based on current hourly rate instead of using stored earnings
+  const totalEarnings = dailyStats.reduce((sum, record) => sum + (record.workedHours * hourlyRate), 0);
 
   // Goal calculations
   const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
@@ -278,7 +279,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
                           <div className="flex items-center gap-2">
                             <CreditCard className="h-4 w-4 text-primary" />
                             <span className="text-sm font-medium text-primary">
-                              {formatCurrency(record.earnings)}
+                              {formatCurrency(record.workedHours * hourlyRate)}
                             </span>
                           </div>
 
