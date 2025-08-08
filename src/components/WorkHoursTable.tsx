@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Clock, Calendar, CreditCard, Pause } from 'lucide-react';
+import { Play, Square, Clock, Calendar, CreditCard, Pause, Target, Edit2 } from 'lucide-react';
 import { format, getDaysInMonth, startOfMonth, addDays } from 'date-fns';
 
 interface DayRecord {
@@ -23,6 +24,11 @@ const WorkHoursTable: React.FC = () => {
   const [hourlyRate, setHourlyRate] = useState<number>(300);
   const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [dailyHoursGoal, setDailyHoursGoal] = useState<number>(() => {
+    const saved = localStorage.getItem('dailyHoursGoal');
+    return saved ? parseFloat(saved) : 8;
+  });
+  const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
 
   const currentMonth = new Date();
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -53,7 +59,8 @@ const WorkHoursTable: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('workHoursData', JSON.stringify(records));
     localStorage.setItem('hourlyRate', hourlyRate.toString());
-  }, [records, hourlyRate]);
+    localStorage.setItem('dailyHoursGoal', dailyHoursGoal.toString());
+  }, [records, hourlyRate, dailyHoursGoal]);
 
   // Initialize days for current month
   useEffect(() => {
@@ -244,6 +251,12 @@ const WorkHoursTable: React.FC = () => {
   const totalEarnings = Object.values(records).reduce((sum, record) => sum + record.earnings, 0);
   const totalHours = Object.values(records).reduce((sum, record) => sum + record.workedHours, 0);
 
+  // Today's hours for daily goal calculation
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const todayRecord = records[today];
+  const todayHours = todayRecord ? todayRecord.workedHours : 0;
+  const remainingHoursToday = Math.max(0, dailyHoursGoal - todayHours);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <Card className="border-primary/20 shadow-lg">
@@ -299,6 +312,81 @@ const WorkHoursTable: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Daily Hours Goal */}
+          <Card className="border-orange-500/20 bg-orange-500/5 mb-6">
+            <CardContent className="pt-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-orange-500" />
+                    <h3 className="text-lg font-semibold">Today's Hours Goal</h3>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingDailyGoal(!isEditingDailyGoal)}
+                    className="text-orange-500 hover:text-orange-600"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Daily Goal</Label>
+                    {isEditingDailyGoal ? (
+                      <Input
+                        type="number"
+                        step="0.5"
+                        value={dailyHoursGoal}
+                        onChange={(e) => setDailyHoursGoal(Number(e.target.value))}
+                        onBlur={() => setIsEditingDailyGoal(false)}
+                        onKeyDown={(e) => e.key === 'Enter' && setIsEditingDailyGoal(false)}
+                        className="mt-1"
+                        autoFocus
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold text-orange-500 mt-1">
+                        {formatHours(dailyHoursGoal)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Today's Hours</Label>
+                    <p className="text-lg font-semibold mt-1">
+                      {formatHours(todayHours)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Hours Left</Label>
+                    <p className="text-lg font-semibold mt-1">
+                      {remainingHoursToday > 0 ? formatHours(remainingHoursToday) : 'Goal reached! 🎉'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Progress</Label>
+                    <p className="text-lg font-semibold mt-1">
+                      {((todayHours / dailyHoursGoal) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-2">
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, (todayHours / dailyHoursGoal) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="overflow-x-auto">
             <Table>
