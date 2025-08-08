@@ -22,9 +22,10 @@ interface MonthlyCalendarProps {
   selectedMonth: Date;
   setSelectedMonth: (month: Date) => void;
   records: { [key: string]: DayRecord };
+  setRecords: (records: { [key: string]: DayRecord }) => void;
 }
 
-const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSelectedMonth, records }) => {
+const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSelectedMonth, records, setRecords }) => {
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);
   
@@ -87,6 +88,21 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
   }).filter(day => !isWeekend(day) && (isFuture(day) || isToday(day)));
   
   const hoursPerWorkingDay = remainingWorkingDays.length > 0 ? remainingHours / remainingWorkingDays.length : 0;
+
+  const removeInterrupt = (date: string, interruptIndex: number) => {
+    const dayData = getDayData(new Date(date));
+    if (!dayData || !dayData.interrupts) return;
+
+    const updatedInterrupts = dayData.interrupts.filter((_, index) => index !== interruptIndex);
+    const updatedRecords = {
+      ...records,
+      [date]: {
+        ...dayData,
+        interrupts: updatedInterrupts,
+      }
+    };
+    setRecords(updatedRecords);
+  };
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -246,8 +262,22 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
                     
                     {/* Interrupts indicator */}
                     {dayData.interrupts && dayData.interrupts.length > 0 && (
-                      <div className="text-xs bg-warning/10 text-warning px-2 py-1 rounded">
-                        {dayData.interrupts.length} break{dayData.interrupts.length > 1 ? 's' : ''}
+                      <div className="space-y-1">
+                        {dayData.interrupts.map((interrupt, index) => (
+                          <div 
+                            key={index}
+                            className="text-xs bg-warning/10 text-warning px-2 py-1 rounded cursor-pointer hover:bg-warning/20 transition-colors"
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              if (window.confirm(`Remove break from ${interrupt.start} to ${interrupt.end}?`)) {
+                                removeInterrupt(format(day, 'yyyy-MM-dd'), index);
+                              }
+                            }}
+                            title="Right-click to remove break"
+                          >
+                            Break: {interrupt.start}-{interrupt.end}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
