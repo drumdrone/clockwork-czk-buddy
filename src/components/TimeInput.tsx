@@ -60,6 +60,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
 
   const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setIsEditing(true); // Set editing mode when user types
     setHours(val);
     
     // Auto-tab to minutes when 2 digits entered
@@ -114,9 +115,11 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   };
 
   const handleHoursFocus = () => {
-    // Clear hours field when focused for fresh input and set editing mode
+    // Set editing mode first before clearing - this prevents external value interference
     setIsEditing(true);
-    setHours('');
+    setTimeout(() => {
+      setHours('');
+    }, 0);
   };
 
   const handleMinutesFocus = () => {
