@@ -26,6 +26,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
 }, ref) => {
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const hoursRef = useRef<HTMLInputElement>(null);
   const minutesRef = useRef<HTMLInputElement>(null);
 
@@ -38,17 +39,17 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
     }
   }));
 
-  // Parse value into hours and minutes when it changes
+  // Parse value into hours and minutes when it changes (but not while user is editing)
   useEffect(() => {
-    if (value && value.includes(':')) {
+    if (!isEditing && value && value.includes(':')) {
       const [h, m] = value.split(':');
       setHours(h.padStart(2, '0'));
       setMinutes(m.padStart(2, '0'));
-    } else {
+    } else if (!isEditing && !value) {
       setHours('');
       setMinutes('');
     }
-  }, [value]);
+  }, [value, isEditing]);
 
   // Auto focus hours input if autoFocus is true
   useEffect(() => {
@@ -66,6 +67,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
       minutesRef.current.focus();
     }
     
+    // Update with current minutes value
     updateTimeValue(val, minutes);
   };
 
@@ -73,9 +75,8 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
     setMinutes(val);
     
-    // If we have minutes, ensure we have hours (default to current hours or 00)
-    const currentHours = hours || '00';
-    updateTimeValue(currentHours, val);
+    // Update with current hours value
+    updateTimeValue(hours, val);
     
     // Auto-jump to next time input when minutes are filled
     if (val.length === 2 && onNextFocus) {
@@ -113,16 +114,19 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   };
 
   const handleHoursFocus = () => {
-    // Clear hours field when focused for fresh input
+    // Clear hours field when focused for fresh input and set editing mode
+    setIsEditing(true);
     setHours('');
   };
 
   const handleMinutesFocus = () => {
-    // Clear minutes field when focused for fresh input  
+    // Clear minutes field when focused for fresh input and set editing mode
+    setIsEditing(true);
     setMinutes('');
   };
 
   const handleHoursBlur = () => {
+    setIsEditing(false);
     if (hours && hours.length === 1) {
       setHours(hours.padStart(2, '0'));
       updateTimeValue(hours.padStart(2, '0'), minutes);
@@ -130,6 +134,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   };
 
   const handleMinutesBlur = () => {
+    setIsEditing(false);
     if (minutes && minutes.length === 1) {
       setMinutes(minutes.padStart(2, '0'));
       updateTimeValue(hours, minutes.padStart(2, '0'));
