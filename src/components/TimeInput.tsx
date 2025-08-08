@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Input } from '@/components/ui/input';
 
 interface TimeInputProps {
@@ -7,19 +7,36 @@ interface TimeInputProps {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  onNextFocus?: () => void; // Callback to focus next time input
+  autoFocus?: boolean;
 }
 
-const TimeInput: React.FC<TimeInputProps> = ({
+export interface TimeInputRef {
+  focus: () => void;
+}
+
+const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   value,
   onChange,
   className = '',
   placeholder = '--:--',
-  disabled = false
-}) => {
+  disabled = false,
+  onNextFocus,
+  autoFocus = false
+}, ref) => {
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
   const hoursRef = useRef<HTMLInputElement>(null);
   const minutesRef = useRef<HTMLInputElement>(null);
+
+  // Expose focus method to parent
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (hoursRef.current) {
+        hoursRef.current.focus();
+      }
+    }
+  }));
 
   // Parse value into hours and minutes when it changes
   useEffect(() => {
@@ -32,6 +49,13 @@ const TimeInput: React.FC<TimeInputProps> = ({
       setMinutes('');
     }
   }, [value]);
+
+  // Auto focus hours input if autoFocus is true
+  useEffect(() => {
+    if (autoFocus && hoursRef.current) {
+      hoursRef.current.focus();
+    }
+  }, [autoFocus]);
 
   const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
@@ -49,6 +73,11 @@ const TimeInput: React.FC<TimeInputProps> = ({
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
     setMinutes(val);
     updateTimeValue(hours, val);
+    
+    // Auto-jump to next time input when minutes are filled
+    if (val.length === 2 && onNextFocus) {
+      setTimeout(() => onNextFocus(), 0); // Use timeout to ensure state updates first
+    }
   };
 
   const updateTimeValue = (h: string, m: string) => {
@@ -124,6 +153,8 @@ const TimeInput: React.FC<TimeInputProps> = ({
       />
     </div>
   );
-};
+});
+
+TimeInput.displayName = "TimeInput";
 
 export default TimeInput;

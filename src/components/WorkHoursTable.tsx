@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Play, Square, Calendar, CreditCard, Target } from 'lucide-react';
 import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
-import TimeInput from './TimeInput';
+import TimeInput, { TimeInputRef } from './TimeInput';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
 
 interface TimeInterval {
@@ -53,6 +53,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return saved ? parseFloat(saved) : 8;
   });
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
+  
+  // Create refs for time inputs to manage focus chain
+  const timeInputRefs = useRef<{ [key: string]: { end: any; estimated: any } }>({});
 
   const currentMonth = selectedMonth;
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -475,6 +478,12 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                             onChange={(value) => updateStartTime(date, value)}
                             className="w-full"
                             placeholder="--:--"
+                            onNextFocus={() => {
+                              // Focus on end time input
+                              if (timeInputRefs.current[date]?.end) {
+                                timeInputRefs.current[date].end.focus();
+                              }
+                            }}
                           />
                         )}
                       </TableCell>
@@ -484,16 +493,34 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                           format(currentTime, 'HH:mm')
                         ) : (
                           <TimeInput
+                            ref={(ref) => {
+                              if (!timeInputRefs.current[date]) {
+                                timeInputRefs.current[date] = { end: null, estimated: null };
+                              }
+                              timeInputRefs.current[date].end = ref;
+                            }}
                             value={record.endTime || ''}
                             onChange={(value) => updateEndTime(date, value)}
                             className="w-full"
                             placeholder="--:--"
+                            onNextFocus={() => {
+                              // Focus on estimated end time input
+                              if (timeInputRefs.current[date]?.estimated) {
+                                timeInputRefs.current[date].estimated.focus();
+                              }
+                            }}
                           />
                         )}
                       </TableCell>
                       
                       <TableCell>
                         <TimeInput
+                          ref={(ref) => {
+                            if (!timeInputRefs.current[date]) {
+                              timeInputRefs.current[date] = { end: null, estimated: null };
+                            }
+                            timeInputRefs.current[date].estimated = ref;
+                          }}
                           value={record.estimatedEndTime}
                           onChange={(value) => updateEstimatedEndTime(date, value)}
                           className="w-full"
