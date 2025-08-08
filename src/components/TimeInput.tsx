@@ -109,6 +109,22 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
     }
   };
 
+  const handleHoursFocus = () => {
+    // Clear hours field when focused for fresh input
+    setHours('');
+    if (hoursRef.current) {
+      hoursRef.current.select();
+    }
+  };
+
+  const handleMinutesFocus = () => {
+    // Clear minutes field when focused for fresh input
+    setMinutes('');
+    if (minutesRef.current) {
+      minutesRef.current.select();
+    }
+  };
+
   const handleHoursBlur = () => {
     if (hours && hours.length === 1) {
       setHours(hours.padStart(2, '0'));
@@ -139,6 +155,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
         value={hours}
         onChange={handleHoursChange}
         onKeyDown={handleHoursKeyDown}
+        onFocus={handleHoursFocus}
         onBlur={handleHoursBlur}
         className="w-8 h-8 text-center text-sm font-mono p-1"
         placeholder="HH"
@@ -151,6 +168,7 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
         value={minutes}
         onChange={handleMinutesChange}
         onKeyDown={handleMinutesKeyDown}
+        onFocus={handleMinutesFocus}
         onBlur={handleMinutesBlur}
         className="w-8 h-8 text-center text-sm font-mono p-1"
         placeholder="MM"
