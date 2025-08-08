@@ -60,14 +60,13 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
 
   const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
-    console.log('Hours input - raw value:', e.target.value, 'processed val:', val);
     setHours(val);
     
     // Auto-tab to minutes when 2 digits entered
-    if (val.length === 2 && minutesRef.current) {
-      minutesRef.current.focus();
-      // Only update when we have complete input
-      updateTimeValue(val, minutes);
+    if (val.length === 2) {
+      if (minutesRef.current) {
+        minutesRef.current.focus();
+      }
     }
   };
 
@@ -86,22 +85,16 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   };
 
   const updateTimeValue = (h: string, m: string) => {
-    console.log('updateTimeValue called with h:', h, 'm:', m);
     if (h && m) {
       const formattedHours = Math.min(23, parseInt(h) || 0).toString().padStart(2, '0');
       const formattedMinutes = Math.min(59, parseInt(m) || 0).toString().padStart(2, '0');
-      const result = `${formattedHours}:${formattedMinutes}`;
-      console.log('Calling onChange with:', result);
-      onChange(result);
+      onChange(`${formattedHours}:${formattedMinutes}`);
     } else if (h || m) {
       // Allow partial input - this helps with controlled component behavior
       const formattedHours = h ? Math.min(23, parseInt(h) || 0).toString().padStart(2, '0') : '00';
       const formattedMinutes = m ? Math.min(59, parseInt(m) || 0).toString().padStart(2, '0') : '00';
-      const result = `${formattedHours}:${formattedMinutes}`;
-      console.log('Calling onChange with partial input:', result);
-      onChange(result);
+      onChange(`${formattedHours}:${formattedMinutes}`);
     } else {
-      console.log('Calling onChange with empty value');
       onChange('');
     }
   };
