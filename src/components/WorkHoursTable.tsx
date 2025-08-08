@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Clock, Calendar, CreditCard } from 'lucide-react';
+import { Play, Square, Clock, Calendar, CreditCard, Pause } from 'lucide-react';
 import { format, getDaysInMonth, startOfMonth, addDays } from 'date-fns';
 
 interface DayRecord {
@@ -15,6 +15,8 @@ interface DayRecord {
   isWorking: boolean;
   workedHours: number;
   earnings: number;
+  isPaused?: boolean;
+  pausedTime?: number;
 }
 
 const WorkHoursTable: React.FC = () => {
@@ -68,6 +70,8 @@ const WorkHoursTable: React.FC = () => {
           isWorking: false,
           workedHours: 0,
           earnings: 0,
+          isPaused: false,
+          pausedTime: 0,
         };
       }
     }
@@ -75,7 +79,7 @@ const WorkHoursTable: React.FC = () => {
     setRecords(newRecords);
   }, [daysInMonth, monthStart]);
 
-  const calculateWorkedHours = useCallback((startTime: string, endTime?: string): number => {
+  const calculateWorkedHours = useCallback((startTime: string, endTime?: string, pausedTime: number = 0): number => {
     if (!startTime) return 0;
     
     const start = new Date(`${currentMonth.toDateString()} ${startTime}`);
@@ -84,7 +88,8 @@ const WorkHoursTable: React.FC = () => {
       : currentTime;
     
     const diffMs = end.getTime() - start.getTime();
-    return Math.max(0, diffMs / (1000 * 60 * 60));
+    const totalHours = Math.max(0, diffMs / (1000 * 60 * 60));
+    return Math.max(0, totalHours - (pausedTime / (1000 * 60 * 60)));
   }, [currentTime, currentMonth]);
 
   // Update worked hours and earnings in real-time
@@ -94,8 +99,8 @@ const WorkHoursTable: React.FC = () => {
 
     Object.keys(updatedRecords).forEach(date => {
       const record = updatedRecords[date];
-      if (record.isWorking && record.startTime) {
-        const newWorkedHours = calculateWorkedHours(record.startTime);
+      if (record.isWorking && record.startTime && !record.isPaused) {
+        const newWorkedHours = calculateWorkedHours(record.startTime, undefined, record.pausedTime || 0);
         const newEarnings = newWorkedHours * hourlyRate;
         
         if (record.workedHours !== newWorkedHours || record.earnings !== newEarnings) {
@@ -120,6 +125,36 @@ const WorkHoursTable: React.FC = () => {
         startTime: now,
         endTime: null,
         isWorking: true,
+        isPaused: false,
+        pausedTime: 0,
+      }
+    }));
+  };
+
+  const pauseWork = (date: string) => {
+    setRecords(prev => ({
+      ...prev,
+      [date]: {
+        ...prev[date],
+        isPaused: true,
+      }
+    }));
+  };
+
+  const resumeWork = (date: string) => {
+    const record = records[date];
+    if (!record || !record.startTime) return;
+
+    const now = new Date();
+    const pauseStart = new Date(`${currentMonth.toDateString()} ${record.startTime}`);
+    const pausedDuration = now.getTime() - pauseStart.getTime() - (record.workedHours * 60 * 60 * 1000);
+    
+    setRecords(prev => ({
+      ...prev,
+      [date]: {
+        ...prev[date],
+        isPaused: false,
+        pausedTime: (prev[date].pausedTime || 0) + Math.max(0, pausedDuration),
       }
     }));
   };
@@ -129,7 +164,7 @@ const WorkHoursTable: React.FC = () => {
     if (!record || !record.startTime) return;
 
     const endTime = useEstimated ? record.estimatedEndTime : format(currentTime, 'HH:mm');
-    const workedHours = calculateWorkedHours(record.startTime, endTime);
+    const workedHours = calculateWorkedHours(record.startTime, endTime, record.pausedTime || 0);
     const earnings = workedHours * hourlyRate;
 
     setRecords(prev => ({
@@ -138,6 +173,7 @@ const WorkHoursTable: React.FC = () => {
         ...prev[date],
         endTime,
         isWorking: false,
+        isPaused: false,
         workedHours,
         earnings,
       }
@@ -148,7 +184,7 @@ const WorkHoursTable: React.FC = () => {
     const record = records[date];
     if (record.isWorking) return; // Don't allow editing while timer is running
 
-    const workedHours = time && record.endTime ? calculateWorkedHours(time, record.endTime) : 0;
+    const workedHours = time && record.endTime ? calculateWorkedHours(time, record.endTime, record.pausedTime || 0) : 0;
     const earnings = workedHours * hourlyRate;
 
     setRecords(prev => ({
@@ -166,7 +202,7 @@ const WorkHoursTable: React.FC = () => {
     const record = records[date];
     if (record.isWorking) return; // Don't allow editing while timer is running
 
-    const workedHours = record.startTime && time ? calculateWorkedHours(record.startTime, time) : 0;
+    const workedHours = record.startTime && time ? calculateWorkedHours(record.startTime, time, record.pausedTime || 0) : 0;
     const earnings = workedHours * hourlyRate;
 
     setRecords(prev => ({
@@ -310,6 +346,25 @@ const WorkHoursTable: React.FC = () => {
                             </Button>
                           ) : (
                             <>
+                              {!record.isPaused ? (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => pauseWork(date)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Pause className="h-3 w-3" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => resumeWork(date)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Play className="h-3 w-3" />
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="destructive"
@@ -320,7 +375,7 @@ const WorkHoursTable: React.FC = () => {
                               </Button>
                               <Button
                                 size="sm"
-                                variant="secondary"
+                                variant="outline"
                                 onClick={() => stopWork(date, true)}
                                 className="h-8 text-xs px-2"
                               >
@@ -378,9 +433,15 @@ const WorkHoursTable: React.FC = () => {
                       
                       <TableCell>
                         {record.isWorking ? (
-                          <Badge variant="secondary" className="bg-success/10 text-success border-success/20">
-                            Working
-                          </Badge>
+                          record.isPaused ? (
+                            <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">
+                              Paused
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-success/10 text-success border-success/20">
+                              Working
+                            </Badge>
+                          )
                         ) : record.endTime ? (
                           <Badge className="bg-muted text-muted-foreground">
                             Done
