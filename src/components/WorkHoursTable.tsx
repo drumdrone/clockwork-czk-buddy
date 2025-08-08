@@ -72,7 +72,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Load data from localStorage
+  // Load data from localStorage (only once on mount)
   useEffect(() => {
     const savedData = localStorage.getItem('workHoursData');
     const savedRate = localStorage.getItem('hourlyRate');
@@ -83,7 +83,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     if (savedRate) {
       setHourlyRate(Number(savedRate));
     }
-  }, [setRecords, setHourlyRate]);
+  }, []); // Only run once on mount
 
   // Save data to localStorage
   useEffect(() => {
