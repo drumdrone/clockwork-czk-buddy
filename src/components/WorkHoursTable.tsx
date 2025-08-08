@@ -364,17 +364,17 @@ const WorkHoursTable: React.FC = () => {
 
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-24">Date</TableHead>
-                  <TableHead className="w-32">Actions</TableHead>
-                  <TableHead className="w-28">Start Time</TableHead>
-                  <TableHead className="w-28">End Time</TableHead>
-                  <TableHead className="w-32">Est. End Time</TableHead>
-                  <TableHead className="w-24">Hours</TableHead>
-                  <TableHead className="w-28">Earnings</TableHead>
-                  <TableHead className="w-24">Needed/Day</TableHead>
-                  <TableHead className="w-20">Status</TableHead>
+                  <TableHead className="w-24 bg-muted/50">Date</TableHead>
+                  <TableHead className="w-32 bg-muted/50">Actions</TableHead>
+                  <TableHead className="w-28 bg-muted/50">Start Time</TableHead>
+                  <TableHead className="w-28 bg-muted/50">End Time</TableHead>
+                  <TableHead className="w-32 bg-muted/50">Est. End Time</TableHead>
+                  <TableHead className="w-24 bg-muted/50">Hours</TableHead>
+                  <TableHead className="w-28 bg-muted/50">Earnings</TableHead>
+                  <TableHead className="w-24 bg-muted/50">Needed/Day</TableHead>
+                  <TableHead className="w-20 bg-muted/50">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
