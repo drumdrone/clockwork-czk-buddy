@@ -78,8 +78,6 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
     
     // Auto-jump to next time input when minutes are filled
     if (val.length === 2) {
-      // Update time when complete
-      updateTimeValue(hours, val);
       if (onNextFocus) {
         setTimeout(() => onNextFocus(), 0);
       }
@@ -126,24 +124,16 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
 
   const handleHoursBlur = () => {
     setIsEditing(false);
-    if (hours && hours.length === 1) {
-      const paddedHours = hours.padStart(2, '0');
-      setHours(paddedHours);
-      updateTimeValue(paddedHours, minutes);
-    } else if (hours) {
-      // Update even with existing hours
+    // Only update if we have both hours and minutes
+    if (hours && minutes) {
       updateTimeValue(hours, minutes);
     }
   };
 
   const handleMinutesBlur = () => {
     setIsEditing(false);
-    if (minutes && minutes.length === 1) {
-      const paddedMinutes = minutes.padStart(2, '0');
-      setMinutes(paddedMinutes);
-      updateTimeValue(hours, paddedMinutes);
-    } else if (minutes) {
-      // Update even with existing minutes
+    // Only update if we have both hours and minutes
+    if (hours && minutes) {
       updateTimeValue(hours, minutes);
     }
   };
