@@ -65,22 +65,22 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
     // Auto-tab to minutes when 2 digits entered
     if (val.length === 2 && minutesRef.current) {
       minutesRef.current.focus();
+      // Only update when we have complete input
+      updateTimeValue(val, minutes);
     }
-    
-    // Update with current minutes value
-    updateTimeValue(val, minutes);
   };
 
   const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 2);
     setMinutes(val);
     
-    // Update with current hours value
-    updateTimeValue(hours, val);
-    
     // Auto-jump to next time input when minutes are filled
-    if (val.length === 2 && onNextFocus) {
-      setTimeout(() => onNextFocus(), 0); // Use timeout to ensure state updates first
+    if (val.length === 2) {
+      // Update time when complete
+      updateTimeValue(hours, val);
+      if (onNextFocus) {
+        setTimeout(() => onNextFocus(), 0);
+      }
     }
   };
 
@@ -128,16 +128,24 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
   const handleHoursBlur = () => {
     setIsEditing(false);
     if (hours && hours.length === 1) {
-      setHours(hours.padStart(2, '0'));
-      updateTimeValue(hours.padStart(2, '0'), minutes);
+      const paddedHours = hours.padStart(2, '0');
+      setHours(paddedHours);
+      updateTimeValue(paddedHours, minutes);
+    } else if (hours) {
+      // Update even with existing hours
+      updateTimeValue(hours, minutes);
     }
   };
 
   const handleMinutesBlur = () => {
     setIsEditing(false);
     if (minutes && minutes.length === 1) {
-      setMinutes(minutes.padStart(2, '0'));
-      updateTimeValue(hours, minutes.padStart(2, '0'));
+      const paddedMinutes = minutes.padStart(2, '0');
+      setMinutes(paddedMinutes);
+      updateTimeValue(hours, paddedMinutes);
+    } else if (minutes) {
+      // Update even with existing minutes
+      updateTimeValue(hours, minutes);
     }
   };
 
