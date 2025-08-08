@@ -31,7 +31,7 @@ const InterruptDialog: React.FC<InterruptDialogProps> = ({ onAddInterrupt, disab
           size="sm"
           variant="outline"
           disabled={disabled}
-          className="h-8 w-8 p-0"
+          className="h-8 w-8 p-0 bg-red-600 hover:bg-red-700 text-white border-red-600"
           title="Add Interrupt"
         >
           <Pause className="h-3 w-3" />
