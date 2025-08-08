@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Play, Square, Clock, Calendar, CreditCard, Pause, Target, Edit2 } from 'lucide-react';
-import { format, getDaysInMonth, startOfMonth, addDays } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
 
 interface DayRecord {
   date: string;
@@ -257,6 +257,20 @@ const WorkHoursTable: React.FC = () => {
   const todayHours = todayRecord ? todayRecord.workedHours : 0;
   const remainingHoursToday = Math.max(0, dailyHoursGoal - todayHours);
 
+  // Monthly goal calculations
+  const monthlyGoal = parseFloat(localStorage.getItem('monthlyGoal') || '50000');
+  const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
+  const remainingHours = remainingEarnings / hourlyRate;
+  
+  // Calculate working days from today to end of month (Monday-Friday only)
+  const endOfCurrentMonth = endOfMonth(currentMonth);
+  const remainingWorkingDays = eachDayOfInterval({
+    start: new Date(),
+    end: endOfCurrentMonth
+  }).filter(day => !isWeekend(day));
+  
+  const hoursPerWorkingDay = remainingWorkingDays.length > 0 ? remainingHours / remainingWorkingDays.length : 0;
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <Card className="border-primary/20 shadow-lg">
@@ -313,29 +327,21 @@ const WorkHoursTable: React.FC = () => {
             </Card>
           </div>
 
-          {/* Daily Hours Goal */}
+          {/* Daily Goal Summary */}
           <Card className="border-orange-500/20 bg-orange-500/5 mb-6">
             <CardContent className="pt-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Target className="h-5 w-5 text-orange-500" />
-                    <h3 className="text-lg font-semibold">Today's Hours Goal</h3>
+                    <span className="font-medium">Hours left today:</span>
+                    <span className="text-lg font-semibold text-orange-500">
+                      {remainingHoursToday > 0 ? formatHours(remainingHoursToday) : 'Goal reached! 🎉'}
+                    </span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingDailyGoal(!isEditingDailyGoal)}
-                    className="text-orange-500 hover:text-orange-600"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Daily Goal</Label>
-                    {isEditingDailyGoal ? (
+                  
+                  {isEditingDailyGoal ? (
+                    <div className="flex items-center gap-2">
                       <Input
                         type="number"
                         step="0.5"
@@ -343,46 +349,24 @@ const WorkHoursTable: React.FC = () => {
                         onChange={(e) => setDailyHoursGoal(Number(e.target.value))}
                         onBlur={() => setIsEditingDailyGoal(false)}
                         onKeyDown={(e) => e.key === 'Enter' && setIsEditingDailyGoal(false)}
-                        className="mt-1"
+                        className="w-20 h-8"
                         autoFocus
                       />
-                    ) : (
-                      <p className="text-lg font-semibold text-orange-500 mt-1">
-                        {formatHours(dailyHoursGoal)}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Today's Hours</Label>
-                    <p className="text-lg font-semibold mt-1">
-                      {formatHours(todayHours)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Hours Left</Label>
-                    <p className="text-lg font-semibold mt-1">
-                      {remainingHoursToday > 0 ? formatHours(remainingHoursToday) : 'Goal reached! 🎉'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Progress</Label>
-                    <p className="text-lg font-semibold mt-1">
-                      {((todayHours / dailyHoursGoal) * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="space-y-2">
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-orange-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, (todayHours / dailyHoursGoal) * 100)}%` }}
-                    />
-                  </div>
+                      <span className="text-sm">h/day</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Goal: {formatHours(dailyHoursGoal)}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingDailyGoal(true)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -399,6 +383,7 @@ const WorkHoursTable: React.FC = () => {
                   <TableHead className="w-32">Est. End Time</TableHead>
                   <TableHead className="w-24">Hours</TableHead>
                   <TableHead className="w-28">Earnings</TableHead>
+                  <TableHead className="w-24">Needed/Day</TableHead>
                   <TableHead className="w-20">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -518,8 +503,25 @@ const WorkHoursTable: React.FC = () => {
                       <TableCell className="font-medium text-primary">
                         {record.earnings > 0 ? formatCurrency(record.earnings) : '-'}
                       </TableCell>
-                      
-                      <TableCell>
+                       
+                        <TableCell className="font-medium">
+                          {(() => {
+                            const dateObj = addDays(monthStart, i);
+                            const isFutureDate = isFuture(dateObj) || format(dateObj, 'yyyy-MM-dd') === today;
+                            const isWorkingDay = !isWeekend(dateObj);
+                            
+                            if (isFutureDate && isWorkingDay && hoursPerWorkingDay > 0) {
+                              return (
+                                <span className="text-orange-500 font-semibold">
+                                  {formatHours(hoursPerWorkingDay)}
+                                </span>
+                              );
+                            }
+                            return '-';
+                          })()}
+                        </TableCell>
+                       
+                       <TableCell>
                         {record.isWorking ? (
                           record.isPaused ? (
                             <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">
