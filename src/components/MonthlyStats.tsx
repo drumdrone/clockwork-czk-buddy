@@ -39,57 +39,43 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
     return `${h}h ${m}m`;
   };
 
-  const getMonthlyStats = () => {
-    const last6Months = eachMonthOfInterval({
-      start: subMonths(new Date(), 5),
-      end: new Date()
+  const getDailyStats = () => {
+    const currentMonth = new Date();
+    const currentMonthRecords = Object.values(records).filter(record => {
+      const recordDate = new Date(record.date);
+      return recordDate.getMonth() === currentMonth.getMonth() && 
+             recordDate.getFullYear() === currentMonth.getFullYear();
     });
 
-    return last6Months.map(month => {
-      const monthStart = startOfMonth(month);
-      const monthEnd = endOfMonth(month);
-      
-      const monthRecords = Object.values(records).filter(record => {
-        const recordDate = new Date(record.date);
-        return recordDate >= monthStart && recordDate <= monthEnd;
-      });
-
-      const totalHours = monthRecords.reduce((sum, record) => sum + record.workedHours, 0);
-      const totalEarnings = monthRecords.reduce((sum, record) => sum + record.earnings, 0);
-      const workingDays = monthRecords.filter(record => record.workedHours > 0).length;
-
-      return {
-        month: format(month, 'MMMM yyyy'),
-        totalHours,
-        totalEarnings,
-        workingDays,
-        avgHoursPerDay: workingDays > 0 ? totalHours / workingDays : 0
-      };
-    }).reverse();
+    return currentMonthRecords
+      .filter(record => record.workedHours > 0)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   const exportToGoogleSheets = () => {
-    const stats = getMonthlyStats();
+    const dailyStats = getDailyStats();
     const csvContent = [
-      ['Month', 'Total Hours', 'Total Earnings (CZK)', 'Working Days', 'Avg Hours/Day'],
-      ...stats.map(stat => [
-        stat.month,
-        stat.totalHours.toFixed(2),
-        stat.totalEarnings.toFixed(0),
-        stat.workingDays,
-        stat.avgHoursPerDay.toFixed(2)
+      ['Date', 'Day', 'Hours', 'Earnings (CZK)', 'Start Time', 'End Time'],
+      ...dailyStats.map(record => [
+        record.date,
+        format(new Date(record.date), 'EEEE'),
+        record.workedHours.toFixed(2),
+        record.earnings.toFixed(0),
+        record.startTime || '',
+        record.endTime || ''
       ])
     ].map(row => row.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `work-hours-stats-${format(new Date(), 'yyyy-MM')}.csv`;
+    link.download = `daily-work-hours-${format(new Date(), 'yyyy-MM')}.csv`;
     link.click();
   };
 
-  const monthlyStats = getMonthlyStats();
-  const currentMonth = monthlyStats[0];
+  const dailyStats = getDailyStats();
+  const totalHours = dailyStats.reduce((sum, record) => sum + record.workedHours, 0);
+  const totalEarnings = dailyStats.reduce((sum, record) => sum + record.earnings, 0);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -97,8 +83,8 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
         <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-2xl">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              Monthly Statistics
+              <Calendar className="h-6 w-6 text-primary" />
+              Daily Work Summary - {format(new Date(), 'MMMM yyyy')}
             </CardTitle>
             <Button onClick={exportToGoogleSheets} className="flex items-center gap-2">
               <Download className="h-4 w-4" />
@@ -107,99 +93,101 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate }) => {
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {/* Current Month Summary */}
-          {currentMonth && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card className="border-primary/10">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Current Month</p>
-                      <p className="text-lg font-semibold">{currentMonth.month}</p>
-                    </div>
+          {/* Month Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card className="border-success/20 bg-success/5">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-success" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Hours</p>
+                    <p className="text-lg font-semibold text-success">{formatHours(totalHours)}</p>
                   </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-success/20 bg-success/5">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-success" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Hours</p>
-                      <p className="text-lg font-semibold text-success">{formatHours(currentMonth.totalHours)}</p>
-                    </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Earnings</p>
+                    <p className="text-lg font-semibold text-primary">{formatCurrency(totalEarnings)}</p>
                   </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Earnings</p>
-                      <p className="text-lg font-semibold text-primary">{formatCurrency(currentMonth.totalEarnings)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Card className="border-accent/20 bg-accent/5">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-accent-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Working Days</p>
-                      <p className="text-lg font-semibold">{currentMonth.workingDays}</p>
-                    </div>
+            <Card className="border-accent/20 bg-accent/5">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-accent-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Working Days</p>
+                    <p className="text-lg font-semibold">{dailyStats.length}</p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Daily Cards */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Daily Breakdown</h3>
+            {dailyStats.length === 0 ? (
+              <Card className="border-muted">
+                <CardContent className="pt-6 text-center text-muted-foreground">
+                  No work hours recorded for this month yet.
                 </CardContent>
               </Card>
-            </div>
-          )}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {dailyStats.map((record) => (
+                  <Card key={record.date} className="border-primary/10 hover:border-primary/20 transition-colors">
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-lg">
+                              {format(new Date(record.date), 'dd')}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(record.date), 'EEEE')}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {format(new Date(record.date), 'MMM')}
+                          </Badge>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-success" />
+                            <span className="text-sm font-medium text-success">
+                              {formatHours(record.workedHours)}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium text-primary">
+                              {formatCurrency(record.earnings)}
+                            </span>
+                          </div>
 
-          {/* Monthly History Table */}
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Month</TableHead>
-                  <TableHead>Total Hours</TableHead>
-                  <TableHead>Total Earnings</TableHead>
-                  <TableHead>Working Days</TableHead>
-                  <TableHead>Avg Hours/Day</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {monthlyStats.map((stat, index) => (
-                  <TableRow key={stat.month} className={index === 0 ? 'bg-accent/30' : ''}>
-                    <TableCell className="font-medium">{stat.month}</TableCell>
-                    <TableCell className="font-mono">{formatHours(stat.totalHours)}</TableCell>
-                    <TableCell className="font-semibold text-primary">{formatCurrency(stat.totalEarnings)}</TableCell>
-                    <TableCell>{stat.workingDays}</TableCell>
-                    <TableCell className="font-mono">{formatHours(stat.avgHoursPerDay)}</TableCell>
-                    <TableCell>
-                      {index === 0 ? (
-                        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                          Current
-                        </Badge>
-                      ) : stat.totalHours > 0 ? (
-                        <Badge className="bg-success/10 text-success border-success/20">
-                          Complete
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">
-                          No Data
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                          {record.startTime && record.endTime && (
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {record.startTime} - {record.endTime}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
