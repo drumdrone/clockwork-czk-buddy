@@ -431,7 +431,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                                 size="sm"
                                 onClick={() => startWork(date)}
                                 disabled={!!record.endTime}
-                                className="h-8 w-8 p-0"
+                                className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 text-white"
                               >
                                 <Play className="h-3 w-3" />
                               </Button>
