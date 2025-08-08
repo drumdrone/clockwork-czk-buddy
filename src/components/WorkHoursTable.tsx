@@ -374,12 +374,12 @@ const WorkHoursTable: React.FC = () => {
                 {Array.from({ length: daysInMonth }, (_, i) => {
                   const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
                   const record = records[date];
-                  const isToday = format(new Date(), 'yyyy-MM-dd') === date;
+                  const isTodayRow = format(new Date(), 'yyyy-MM-dd') === date;
                   
                   if (!record) return null;
 
                   return (
-                    <TableRow key={date} className={isToday ? 'bg-accent/30' : ''}>
+                    <TableRow key={date} className={isTodayRow ? 'bg-accent/30' : ''}>
                       <TableCell className="font-medium">
                         <div className="flex flex-col">
                           <span>{format(addDays(monthStart, i), 'dd')}</span>
