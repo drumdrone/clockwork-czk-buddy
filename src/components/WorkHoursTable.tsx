@@ -144,6 +144,42 @@ const WorkHoursTable: React.FC = () => {
     }));
   };
 
+  const updateStartTime = (date: string, time: string) => {
+    const record = records[date];
+    if (record.isWorking) return; // Don't allow editing while timer is running
+
+    const workedHours = time && record.endTime ? calculateWorkedHours(time, record.endTime) : 0;
+    const earnings = workedHours * hourlyRate;
+
+    setRecords(prev => ({
+      ...prev,
+      [date]: {
+        ...prev[date],
+        startTime: time || null,
+        workedHours,
+        earnings,
+      }
+    }));
+  };
+
+  const updateEndTime = (date: string, time: string) => {
+    const record = records[date];
+    if (record.isWorking) return; // Don't allow editing while timer is running
+
+    const workedHours = record.startTime && time ? calculateWorkedHours(record.startTime, time) : 0;
+    const earnings = workedHours * hourlyRate;
+
+    setRecords(prev => ({
+      ...prev,
+      [date]: {
+        ...prev[date],
+        endTime: time || null,
+        workedHours,
+        earnings,
+      }
+    }));
+  };
+
   const updateEstimatedEndTime = (date: string, time: string) => {
     setRecords(prev => ({
       ...prev,
@@ -296,11 +332,31 @@ const WorkHoursTable: React.FC = () => {
                       </TableCell>
                       
                       <TableCell className="font-mono text-sm">
-                        {record.startTime || '-'}
+                        {record.isWorking ? (
+                          record.startTime || '-'
+                        ) : (
+                          <Input
+                            type="time"
+                            value={record.startTime || ''}
+                            onChange={(e) => updateStartTime(date, e.target.value)}
+                            className="w-full h-8 text-sm font-mono"
+                            placeholder="--:--"
+                          />
+                        )}
                       </TableCell>
                       
                       <TableCell className="font-mono text-sm">
-                        {record.endTime || (record.isWorking ? format(currentTime, 'HH:mm') : '-')}
+                        {record.isWorking ? (
+                          format(currentTime, 'HH:mm')
+                        ) : (
+                          <Input
+                            type="time"
+                            value={record.endTime || ''}
+                            onChange={(e) => updateEndTime(date, e.target.value)}
+                            className="w-full h-8 text-sm font-mono"
+                            placeholder="--:--"
+                          />
+                        )}
                       </TableCell>
                       
                       <TableCell>
