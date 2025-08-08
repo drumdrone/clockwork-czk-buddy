@@ -5,8 +5,16 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Clock, Calendar, CreditCard, Pause, Target, Edit2 } from 'lucide-react';
+import { Play, Square, Calendar, CreditCard, Target, Clock } from 'lucide-react';
+import InterruptDialog from './InterruptDialog';
+import TimeSparkline from './TimeSparkline';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
+
+interface TimeInterval {
+  start: string;
+  end: string;
+  type: 'work' | 'break';
+}
 
 interface DayRecord {
   date: string;
@@ -18,6 +26,7 @@ interface DayRecord {
   earnings: number;
   isPaused?: boolean;
   pausedTime?: number;
+  interrupts: TimeInterval[];
 }
 
 interface WorkHoursTableProps {
@@ -91,6 +100,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
           earnings: 0,
           isPaused: false,
           pausedTime: 0,
+          interrupts: [],
         };
       }
     }
@@ -150,30 +160,21 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
     }));
   };
 
-  const pauseWork = (date: string) => {
-    setRecords(prev => ({
-      ...prev,
-      [date]: {
-        ...prev[date],
-        isPaused: true,
-      }
-    }));
-  };
-
-  const resumeWork = (date: string) => {
-    const record = records[date];
-    if (!record || !record.startTime) return;
-
-    const now = new Date();
-    const pauseStart = new Date(`${currentMonth.toDateString()} ${record.startTime}`);
-    const pausedDuration = now.getTime() - pauseStart.getTime() - (record.workedHours * 60 * 60 * 1000);
+  const addInterrupt = (date: string, startTime: string, durationMinutes: number) => {
+    const endTime = new Date(`${date} ${startTime}`);
+    endTime.setMinutes(endTime.getMinutes() + durationMinutes);
     
+    const interrupt: TimeInterval = {
+      start: startTime,
+      end: endTime.toTimeString().slice(0, 5),
+      type: 'break'
+    };
+
     setRecords(prev => ({
       ...prev,
       [date]: {
         ...prev[date],
-        isPaused: false,
-        pausedTime: (prev[date].pausedTime || 0) + Math.max(0, pausedDuration),
+        interrupts: [...(prev[date].interrupts || []), interrupt],
       }
     }));
   };
@@ -372,13 +373,14 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
                 <TableRow className="bg-muted/80 backdrop-blur-sm">
                   <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Date</TableHead>
                   <TableHead className="w-32 bg-muted/80 backdrop-blur-sm border-b">Actions</TableHead>
-                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">Start Time</TableHead>
-                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">End Time</TableHead>
-                  <TableHead className="w-32 bg-muted/80 backdrop-blur-sm border-b">Est. End Time</TableHead>
-                  <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Hours</TableHead>
-                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">Earnings</TableHead>
-                  <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Needed/Day</TableHead>
-                  <TableHead className="w-20 bg-muted/80 backdrop-blur-sm border-b">Status</TableHead>
+                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">Start</TableHead>
+                  <TableHead className="w-28 bg-muted/80 backdrop-blur-sm border-b">End</TableHead>
+                  <TableHead className="w-32 bg-muted/80 backdrop-blur-sm border-b">Est. End</TableHead>
+                  <TableHead className="w-20 bg-muted/80 backdrop-blur-sm border-b">Hours</TableHead>
+                  <TableHead className="w-24 bg-muted/80 backdrop-blur-sm border-b">Earnings</TableHead>
+                  <TableHead className="w-20 bg-muted/80 backdrop-blur-sm border-b">Need/Day</TableHead>
+                  <TableHead className="w-32 bg-muted/80 backdrop-blur-sm border-b">Timeline</TableHead>
+                  <TableHead className="w-16 bg-muted/80 backdrop-blur-sm border-b">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -403,35 +405,22 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
                       <TableCell>
                         <div className="flex gap-1">
                           {!record.isWorking ? (
-                            <Button
-                              size="sm"
-                              onClick={() => startWork(date)}
-                              disabled={!!record.endTime}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Play className="h-3 w-3" />
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => startWork(date)}
+                                disabled={!!record.endTime}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Play className="h-3 w-3" />
+                              </Button>
+                              <InterruptDialog
+                                onAddInterrupt={(startTime, minutes) => addInterrupt(date, startTime, minutes)}
+                                disabled={!record.startTime}
+                              />
+                            </>
                           ) : (
                             <>
-                              {!record.isPaused ? (
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => pauseWork(date)}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <Pause className="h-3 w-3" />
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => resumeWork(date)}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <Play className="h-3 w-3" />
-                                </Button>
-                              )}
                               <Button
                                 size="sm"
                                 variant="destructive"
@@ -448,6 +437,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
                               >
                                 Est
                               </Button>
+                              <InterruptDialog
+                                onAddInterrupt={(startTime, minutes) => addInterrupt(date, startTime, minutes)}
+                              />
                             </>
                           )}
                         </div>
@@ -498,7 +490,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
                         {record.earnings > 0 ? formatCurrency(record.earnings) : '-'}
                       </TableCell>
                        
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium text-xs">
                           {(() => {
                             const dateObj = addDays(monthStart, i);
                             const isFutureDate = isFuture(dateObj) || format(dateObj, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
@@ -514,6 +506,16 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
                             return '-';
                           })()}
                         </TableCell>
+                       
+                       <TableCell>
+                         <TimeSparkline
+                           intervals={record.interrupts || []}
+                           workStart={record.startTime || undefined}
+                           workEnd={record.endTime || undefined}
+                           isWorking={record.isWorking}
+                           currentTime={currentTime}
+                         />
+                       </TableCell>
                        
                        <TableCell>
                         {record.isWorking ? (
