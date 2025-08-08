@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkHoursTable from '@/components/WorkHoursTable';
 import MonthlyStats from '@/components/MonthlyStats';
+import MonthlyCalendar from '@/components/MonthlyCalendar';
+
+interface TimeInterval {
+  start: string;
+  end: string;
+  type: 'work' | 'break';
+}
 
 interface DayRecord {
   date: string;
@@ -13,6 +20,7 @@ interface DayRecord {
   earnings: number;
   isPaused?: boolean;
   pausedTime?: number;
+  interrupts: TimeInterval[];
 }
 
 const Index = () => {
@@ -42,6 +50,9 @@ const Index = () => {
               <TabsTrigger value="tracker" className="h-10 px-6">
                 Time Tracker
               </TabsTrigger>
+              <TabsTrigger value="calendar" className="h-10 px-6">
+                Calendar View
+              </TabsTrigger>
               <TabsTrigger value="stats" className="h-10 px-6">
                 Monthly Stats
               </TabsTrigger>
@@ -50,7 +61,19 @@ const Index = () => {
         </div>
         
         <TabsContent value="tracker" className="mt-0">
-          <WorkHoursTable selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />
+          <WorkHoursTable 
+            selectedMonth={selectedMonth} 
+            setSelectedMonth={setSelectedMonth}
+            records={records}
+            setRecords={setRecords}
+          />
+        </TabsContent>
+        
+        <TabsContent value="calendar" className="mt-0">
+          <MonthlyCalendar 
+            selectedMonth={selectedMonth}
+            records={records}
+          />
         </TabsContent>
         
         <TabsContent value="stats" className="mt-0">

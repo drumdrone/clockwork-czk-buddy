@@ -32,11 +32,17 @@ interface DayRecord {
 interface WorkHoursTableProps {
   selectedMonth: Date;
   setSelectedMonth: (month: Date) => void;
+  records: { [key: string]: DayRecord };
+  setRecords: (records: { [key: string]: DayRecord }) => void;
 }
 
-const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelectedMonth }) => {
+const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ 
+  selectedMonth, 
+  setSelectedMonth, 
+  records, 
+  setRecords 
+}) => {
   const [hourlyRate, setHourlyRate] = useState<number>(300);
-  const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dailyHoursGoal, setDailyHoursGoal] = useState<number>(() => {
     const saved = localStorage.getItem('dailyHoursGoal');
@@ -147,17 +153,18 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
 
   const startWork = (date: string) => {
     const now = format(currentTime, 'HH:mm');
-    setRecords(prev => ({
-      ...prev,
+    const updatedRecords = {
+      ...records,
       [date]: {
-        ...prev[date],
+        ...records[date],
         startTime: now,
         endTime: null,
         isWorking: true,
         isPaused: false,
         pausedTime: 0,
       }
-    }));
+    };
+    setRecords(updatedRecords);
   };
 
   const addInterrupt = (date: string, startTime: string, durationMinutes: number) => {
@@ -170,13 +177,14 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
       type: 'break'
     };
 
-    setRecords(prev => ({
-      ...prev,
+    const updatedRecords = {
+      ...records,
       [date]: {
-        ...prev[date],
-        interrupts: [...(prev[date].interrupts || []), interrupt],
+        ...records[date],
+        interrupts: [...(records[date].interrupts || []), interrupt],
       }
-    }));
+    };
+    setRecords(updatedRecords);
   };
 
   const stopWork = (date: string, useEstimated = false) => {
@@ -187,17 +195,18 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
     const workedHours = calculateWorkedHours(record.startTime, endTime, record.pausedTime || 0);
     const earnings = workedHours * hourlyRate;
 
-    setRecords(prev => ({
-      ...prev,
+    const updatedRecords = {
+      ...records,
       [date]: {
-        ...prev[date],
+        ...records[date],
         endTime,
         isWorking: false,
         isPaused: false,
         workedHours,
         earnings,
       }
-    }));
+    };
+    setRecords(updatedRecords);
   };
 
   const updateStartTime = (date: string, time: string) => {
@@ -207,15 +216,16 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
     const workedHours = time && record.endTime ? calculateWorkedHours(time, record.endTime, record.pausedTime || 0) : 0;
     const earnings = workedHours * hourlyRate;
 
-    setRecords(prev => ({
-      ...prev,
+    const updatedRecords = {
+      ...records,
       [date]: {
-        ...prev[date],
+        ...records[date],
         startTime: time || null,
         workedHours,
         earnings,
       }
-    }));
+    };
+    setRecords(updatedRecords);
   };
 
   const updateEndTime = (date: string, time: string) => {
@@ -225,25 +235,27 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({ selectedMonth, setSelec
     const workedHours = record.startTime && time ? calculateWorkedHours(record.startTime, time, record.pausedTime || 0) : 0;
     const earnings = workedHours * hourlyRate;
 
-    setRecords(prev => ({
-      ...prev,
+    const updatedRecords = {
+      ...records,
       [date]: {
-        ...prev[date],
+        ...records[date],
         endTime: time || null,
         workedHours,
         earnings,
       }
-    }));
+    };
+    setRecords(updatedRecords);
   };
 
   const updateEstimatedEndTime = (date: string, time: string) => {
-    setRecords(prev => ({
-      ...prev,
+    const updatedRecords = {
+      ...records,
       [date]: {
-        ...prev[date],
+        ...records[date],
         estimatedEndTime: time,
       }
-    }));
+    };
+    setRecords(updatedRecords);
   };
 
   const formatCurrency = (amount: number) => {
