@@ -85,7 +85,12 @@ const TimeInput = forwardRef<TimeInputRef, TimeInputProps>(({
       const formattedHours = Math.min(23, parseInt(h) || 0).toString().padStart(2, '0');
       const formattedMinutes = Math.min(59, parseInt(m) || 0).toString().padStart(2, '0');
       onChange(`${formattedHours}:${formattedMinutes}`);
-    } else if (!h && !m) {
+    } else if (h || m) {
+      // Allow partial input - this helps with controlled component behavior
+      const formattedHours = h ? Math.min(23, parseInt(h) || 0).toString().padStart(2, '0') : '00';
+      const formattedMinutes = m ? Math.min(59, parseInt(m) || 0).toString().padStart(2, '0') : '00';
+      onChange(`${formattedHours}:${formattedMinutes}`);
+    } else {
       onChange('');
     }
   };
