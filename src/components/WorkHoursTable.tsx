@@ -29,10 +29,18 @@ const WorkHoursTable: React.FC = () => {
     return saved ? parseFloat(saved) : 8;
   });
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
-  const currentMonth = new Date();
+  const currentMonth = selectedMonth;
   const daysInMonth = getDaysInMonth(currentMonth);
   const monthStart = startOfMonth(currentMonth);
+
+  // Generate month tabs (last 6 months + current + next 2)
+  const monthTabs = Array.from({ length: 9 }, (_, i) => {
+    const monthDate = new Date();
+    monthDate.setMonth(monthDate.getMonth() - 6 + i);
+    return monthDate;
+  });
 
   // Update current time every second
   useEffect(() => {
@@ -276,10 +284,35 @@ const WorkHoursTable: React.FC = () => {
     <div className="container mx-auto p-6 space-y-6">
       <Card className="border-primary/20 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            <Calendar className="h-6 w-6 text-primary" />
-            Work Hours Tracker - {format(currentMonth, 'MMMM yyyy')}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              <Calendar className="h-6 w-6 text-primary" />
+              Work Hours Tracker - {format(currentMonth, 'MMMM yyyy')}
+            </CardTitle>
+            
+            {/* Compact Hours Left Display */}
+            <div className="flex items-center gap-2 text-sm bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20">
+              <Target className="h-3 w-3 text-orange-500" />
+              <span className="text-orange-500 font-medium">
+                {remainingHours > 0 ? `${formatHours(remainingHours)} left` : '✓ Goal reached'}
+              </span>
+            </div>
+          </div>
+          
+          {/* Month Filter Tabs */}
+          <div className="flex gap-1 mt-4 overflow-x-auto">
+            {monthTabs.map((monthDate, index) => (
+              <Button
+                key={index}
+                variant={format(monthDate, 'yyyy-MM') === format(currentMonth, 'yyyy-MM') ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedMonth(monthDate)}
+                className="min-w-fit text-xs h-7"
+              >
+                {format(monthDate, 'MMM yyyy')}
+              </Button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -328,32 +361,6 @@ const WorkHoursTable: React.FC = () => {
             </Card>
           </div>
 
-          {/* Monthly Hours Summary */}
-          <Card className="border-orange-500/20 bg-orange-500/5 mb-6">
-            <CardContent className="pt-4">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-orange-500" />
-                  <span className="font-medium">Hours left this month:</span>
-                  <span className="text-lg font-semibold text-orange-500">
-                    {remainingHours > 0 ? formatHours(remainingHours) : 'Goal reached! 🎉'}
-                  </span>
-                </div>
-                
-                {/* Weekly Calendar */}
-                <div className="grid grid-cols-5 gap-2">
-                  {dailyHoursDisplay.map(({ day, hours }) => (
-                    <div key={day} className="text-center p-2 bg-background/50 rounded">
-                      <div className="text-xs text-muted-foreground">{day.slice(0, 3).toUpperCase()}</div>
-                      <div className="text-sm font-semibold text-orange-500">
-                        {hours > 0 ? formatHours(hours) : '-'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="overflow-x-auto">
             <Table>
