@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
 import TimeInput from './TimeInput';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
+import { useToast } from '@/components/ui/use-toast';
 
 interface TimeInterval {
   start: string;
@@ -54,6 +55,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return saved ? parseFloat(saved) : 8;
   });
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentMonth = selectedMonth;
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -277,6 +280,59 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     setRecords(updatedRecords);
   };
 
+  const exportBackup = () => {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data: {
+        workHoursData: records,
+        hourlyRate,
+        dailyHoursGoal,
+        monthlyGoal: parseFloat(localStorage.getItem('monthlyGoal') || '50000'),
+      },
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `work-hours-backup-${format(new Date(), 'yyyy-MM-dd')}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast({ title: 'Backup exported', description: 'JSON downloaded.' });
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const data = json.data || json;
+      if (!data.workHoursData) throw new Error('Invalid backup file');
+
+      // Apply state
+      setRecords(data.workHoursData);
+      if (typeof data.hourlyRate === 'number') setHourlyRate(data.hourlyRate);
+      if (typeof data.dailyHoursGoal === 'number') setDailyHoursGoal(data.dailyHoursGoal);
+      if (typeof data.monthlyGoal === 'number') localStorage.setItem('monthlyGoal', String(data.monthlyGoal));
+
+      // Persist to localStorage
+      localStorage.setItem('workHoursData', JSON.stringify(data.workHoursData));
+      if (typeof data.hourlyRate === 'number') localStorage.setItem('hourlyRate', String(data.hourlyRate));
+      if (typeof data.dailyHoursGoal === 'number') localStorage.setItem('dailyHoursGoal', String(data.dailyHoursGoal));
+
+      toast({ title: 'Backup imported', description: 'Data restored successfully.' });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Import failed', description: 'Invalid backup file.', variant: 'destructive' as any });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
       style: 'currency',
@@ -332,12 +388,21 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
               Work Hours Tracker - {format(currentMonth, 'MMMM yyyy')}
             </CardTitle>
             
-            {/* Compact Hours Left Display */}
-            <div className="flex items-center gap-2 text-sm bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20">
-              <Target className="h-3 w-3 text-orange-500" />
-              <span className="text-orange-500 font-medium">
-                {remainingHours > 0 ? `${formatHours(remainingHours)} left` : '✓ Goal reached'}
-              </span>
+            {/* Compact Hours Left + Backup */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-sm bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20">
+                <Target className="h-3 w-3 text-orange-500" />
+                <span className="text-orange-500 font-medium">
+                  {remainingHours > 0 ? `${formatHours(remainingHours)} left` : '✓ Goal reached'}
+                </span>
+              </div>
+              <Button variant="outline" size="sm" onClick={exportBackup} className="h-8">
+                Backup
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleImportClick} className="h-8">
+                Restore
+              </Button>
+              <input type="file" accept="application/json" ref={fileInputRef} onChange={handleImportChange} className="hidden" />
             </div>
           </div>
           
