@@ -21,6 +21,7 @@ interface DayRecord {
   isPaused?: boolean;
   pausedTime?: number;
   interrupts: TimeInterval[];
+  isDayOff?: boolean;
 }
 
 const Index = () => {

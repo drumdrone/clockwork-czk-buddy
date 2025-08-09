@@ -18,6 +18,7 @@ interface DayRecord {
   earnings: number;
   isPaused?: boolean;
   pausedTime?: number;
+  isDayOff?: boolean;
 }
 
 interface MonthlyStatsProps {
@@ -94,13 +95,17 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
   const remainingHours = remainingEarnings / hourlyRate;
   
-  // Calculate working days from today to end of month (Monday-Friday only)
-  const today = new Date();
-  const endOfCurrentMonth = endOfMonth(today);
-  const remainingDays = eachDayOfInterval({
-    start: today,
-    end: endOfCurrentMonth
-  }).filter(day => !isWeekend(day));
+// Calculate working days from today to end of month (Monday-Friday only)
+const today = new Date();
+const endOfCurrentMonth = endOfMonth(today);
+const remainingDays = eachDayOfInterval({
+  start: today,
+  end: endOfCurrentMonth
+}).filter(day => !isWeekend(day))
+  .filter(day => {
+    const key = format(day, 'yyyy-MM-dd');
+    return !(records[key]?.isDayOff);
+  });
   
   const hoursPerWorkingDay = remainingDays.length > 0 ? remainingHours / remainingDays.length : 0;
 

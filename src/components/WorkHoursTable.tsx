@@ -28,6 +28,7 @@ interface DayRecord {
   isPaused?: boolean;
   pausedTime?: number;
   interrupts: TimeInterval[];
+  isDayOff?: boolean;
 }
 
 interface WorkHoursTableProps {
@@ -112,6 +113,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           isPaused: false,
           pausedTime: 0,
           interrupts: [],
+          isDayOff: false,
         };
         hasNewDays = true;
       }
@@ -266,6 +268,15 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     setRecords(updatedRecords);
   };
 
+  const toggleDayOff = (date: string) => {
+    const prev = records[date];
+    const updatedRecords = {
+      ...records,
+      [date]: { ...prev, isDayOff: !prev?.isDayOff }
+    };
+    setRecords(updatedRecords);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
       style: 'currency',
@@ -296,8 +307,13 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     start: new Date(),
     end: endOfCurrentMonth
   }).filter(day => !isWeekend(day));
+  // Exclude days marked as off
+  const remainingAvailableDays = remainingWorkingDays.filter(day => {
+    const key = format(day, 'yyyy-MM-dd');
+    return !(records[key]?.isDayOff);
+  });
   
-  const hoursPerWorkingDay = remainingWorkingDays.length > 0 ? remainingHours / remainingWorkingDays.length : 0;
+  const hoursPerWorkingDay = remainingAvailableDays.length > 0 ? remainingHours / remainingAvailableDays.length : 0;
 
   // Generate weekly calendar with daily hours needed
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -425,6 +441,15 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                       
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant={record.isDayOff ? "secondary" : "outline"}
+                            onClick={() => toggleDayOff(date)}
+                            className={`h-8 w-8 p-0 ${record.isDayOff ? 'bg-orange-500/10 text-orange-600 border-orange-500/20' : ''}`}
+                            title="Day off"
+                          >
+                            D
+                          </Button>
                           {!record.isWorking ? (
                             <>
                               <Button
@@ -549,6 +574,10 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                         ) : record.endTime ? (
                           <Badge className="bg-muted text-muted-foreground">
                             Done
+                          </Badge>
+                        ) : record.isDayOff ? (
+                          <Badge variant="outline" className="text-orange-600 border-orange-500/30">
+                            Off
                           </Badge>
                         ) : (
                           <Badge variant="outline">
