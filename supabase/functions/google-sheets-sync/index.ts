@@ -15,25 +15,42 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Function called with method:', req.method);
+    
+    if (!googleApiKey) {
+      console.error('GOOGLE_API_KEY environment variable not set');
+      throw new Error('Google API key not configured');
+    }
+
     const { action, data, spreadsheetId, range } = await req.json();
+    console.log('Request data:', { action, spreadsheetId, range });
 
     if (action === 'backup') {
       // Create or update a Google Sheet with work hours data
       const csvData = convertToCSV(data);
+      console.log('CSV data prepared, rows:', csvData.length);
       
       // For simplicity, we'll use Google Sheets API to update a specific range
       // User needs to create a Google Sheet and share the ID
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:clear?key=${googleApiKey}`;
+      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:clear?key=${googleApiKey}`;
       
       // Clear existing data
-      await fetch(url, {
+      console.log('Clearing existing data...');
+      const clearResponse = await fetch(clearUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
 
+      if (!clearResponse.ok) {
+        const clearError = await clearResponse.text();
+        console.error('Clear failed:', clearResponse.status, clearError);
+        throw new Error(`Failed to clear sheet: ${clearResponse.status} - ${clearError}`);
+      }
+
       // Insert new data
       const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=RAW&key=${googleApiKey}`;
       
+      console.log('Updating with new data...');
       const response = await fetch(updateUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -43,9 +60,12 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        throw new Error(`Google Sheets API error: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Update failed:', response.status, errorText);
+        throw new Error(`Google Sheets API error: ${response.status} - ${errorText}`);
       }
 
+      console.log('Backup successful');
       return new Response(JSON.stringify({ success: true, message: 'Data backed up to Google Sheets' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
