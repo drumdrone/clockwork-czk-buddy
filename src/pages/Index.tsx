@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkHoursTable from '@/components/WorkHoursTable';
 import MonthlyStats from '@/components/MonthlyStats';
 import MonthlyCalendar from '@/components/MonthlyCalendar';
+import Login from '@/components/Login';
 
 interface TimeInterval {
   start: string;
@@ -28,6 +29,13 @@ const Index = () => {
   const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [hourlyRate, setHourlyRate] = useState<number>(300);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const authStatus = localStorage.getItem('isAuthenticated');
+    setIsAuthenticated(authStatus === 'true');
+  }, []);
 
   // Load data from localStorage
   useEffect(() => {
@@ -42,22 +50,44 @@ const Index = () => {
     }
   }, []);
 
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    setIsAuthenticated(false);
+  };
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Tabs defaultValue="tracker" className="w-full">
         <div className="border-b bg-card">
           <div className="container mx-auto px-6">
-            <TabsList className="h-12 bg-transparent p-0">
-              <TabsTrigger value="tracker" className="h-10 px-6">
-                Time Tracker
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="h-10 px-6">
-                Calendar View
-              </TabsTrigger>
-              <TabsTrigger value="stats" className="h-10 px-6">
-                Monthly Stats
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between">
+              <TabsList className="h-12 bg-transparent p-0">
+                <TabsTrigger value="tracker" className="h-10 px-6">
+                  Time Tracker
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="h-10 px-6">
+                  Calendar View
+                </TabsTrigger>
+                <TabsTrigger value="stats" className="h-10 px-6">
+                  Monthly Stats
+                </TabsTrigger>
+              </TabsList>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
         
