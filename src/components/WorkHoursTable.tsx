@@ -392,8 +392,19 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       return;
     }
 
+    // Validate that it's a proper URL
+    if (!googleSheetId.startsWith('http')) {
+      toast({ 
+        title: 'Invalid URL', 
+        description: 'Please enter a valid Google Sheet published CSV URL starting with https://',
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setIsRestoring(true);
     try {
+      console.log('Sending restore request with URL:', googleSheetId);
       const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
         body: {
           action: 'restore',
