@@ -116,20 +116,23 @@ serve(async (req) => {
 });
 
 function convertToCSV(data: any) {
-  const headers = ['Date', 'Start Time', 'End Time', 'Estimated End', 'Hours Worked', 'Earnings', 'Is Day Off', 'Interrupts'];
+  const headers = ['Date', 'Day', 'Start Time', 'End Time', 'Estimated End', 'Hours Worked', 'Earnings', 'Is Day Off', 'Interrupts'];
   const rows = [headers];
 
   // Add metadata row
-  rows.push(['Hourly Rate', data.hourlyRate.toString(), '', '', '', '', '', '']);
-  rows.push(['Daily Hours Goal', data.dailyHoursGoal.toString(), '', '', '', '', '', '']);
-  rows.push(['Monthly Goal', data.monthlyGoal.toString(), '', '', '', '', '', '']);
+  rows.push(['Hourly Rate', data.hourlyRate.toString(), '', '', '', '', '', '', '']);
+  rows.push(['Daily Hours Goal', data.dailyHoursGoal.toString(), '', '', '', '', '', '', '']);
+  rows.push(['Monthly Goal', data.monthlyGoal.toString(), '', '', '', '', '', '', '']);
   rows.push(['']); // Empty row separator
 
   // Add work hours data
   Object.entries(data.workHoursData).forEach(([date, record]: [string, any]) => {
+    const dateObj = new Date(date + 'T00:00:00');
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
     const interruptsStr = record.interrupts?.map((i: any) => `${i.start}-${i.end}`).join(';') || '';
     rows.push([
       date,
+      dayName,
       record.startTime || '',
       record.endTime || '',
       record.estimatedEndTime || '',
