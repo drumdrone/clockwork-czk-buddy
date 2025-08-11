@@ -220,7 +220,7 @@ function parseCSVData(csvText: string) {
     // Skip if date doesn't look like a date
     if (!date.match(/\d{4}-\d{2}-\d{2}/)) continue;
 
-    const interrupts = row[7] ? row[7].split(';').map((interrupt: string) => {
+    const interrupts = row[8] ? row[8].split(';').map((interrupt: string) => {
       const [start, end] = interrupt.split('-');
       return { start, end, type: 'break' };
     }) : [];

@@ -438,13 +438,22 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       if (data?.data) {
         const restoredData = data.data;
         
-        // Update all the state with restored data
-        setRecords(restoredData.workHoursData);
+        // Recalculate earnings based on current hourly rate for all imported records
+        const recalculatedWorkHoursData = { ...restoredData.workHoursData };
+        Object.keys(recalculatedWorkHoursData).forEach(date => {
+          const record = recalculatedWorkHoursData[date];
+          if (record.workedHours) {
+            record.earnings = record.workedHours * restoredData.hourlyRate;
+          }
+        });
+        
+        // Update all the state with recalculated data
+        setRecords(recalculatedWorkHoursData);
         setHourlyRate(restoredData.hourlyRate);
         setDailyHoursGoal(restoredData.dailyHoursGoal);
         
         // Persist to localStorage
-        localStorage.setItem('workHoursData', JSON.stringify(restoredData.workHoursData));
+        localStorage.setItem('workHoursData', JSON.stringify(recalculatedWorkHoursData));
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
         localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
