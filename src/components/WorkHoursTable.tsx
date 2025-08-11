@@ -335,15 +335,6 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   };
 
   const backupToGoogleSheets = async () => {
-    if (!googleSheetId.trim()) {
-      toast({ 
-        title: 'Google Sheet ID required', 
-        description: 'Please enter your Google Sheet ID first.',
-        variant: 'destructive' 
-      });
-      return;
-    }
-
     setIsBackingUp(true);
     try {
       const payload = {
@@ -356,23 +347,34 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
         body: {
           action: 'backup',
-          data: payload,
-          spreadsheetId: googleSheetId,
-          range: 'WorkHours!A1:H'
+          data: payload
         }
       });
 
       if (error) throw error;
 
-      toast({ 
-        title: 'Backup successful', 
-        description: 'Data backed up to Google Sheets successfully.' 
-      });
+      if (data?.csvData) {
+        // Create and download CSV file
+        const blob = new Blob([data.csvData], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `work-hours-backup-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        toast({ 
+          title: 'CSV exported', 
+          description: 'CSV file downloaded. Import this file into your Google Sheet.' 
+        });
+      }
     } catch (error: any) {
-      console.error('Backup failed:', error);
+      console.error('Export failed:', error);
       toast({ 
-        title: 'Backup failed', 
-        description: error.message || 'Failed to backup to Google Sheets.',
+        title: 'Export failed', 
+        description: error.message || 'Failed to generate CSV export.',
         variant: 'destructive' 
       });
     } finally {
@@ -520,51 +522,33 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {/* Google Sheets Backup Section */}
+          {/* CSV Export Section */}
           <Card className="border-primary/10 mb-6">
             <CardContent className="pt-4">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <Cloud className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-sm font-medium">Google Sheets Backup</p>
-                    <p className="text-xs text-muted-foreground">Sync your data with Google Sheets</p>
+                    <p className="text-sm font-medium">CSV Export</p>
+                    <p className="text-xs text-muted-foreground">Export your data as CSV for Google Sheets</p>
                   </div>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    placeholder="Enter Google Sheet ID (e.g., 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms)"
-                    value={googleSheetId}
-                    onChange={(e) => setGoogleSheetId(e.target.value)}
-                    className="flex-1"
-                  />
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={backupToGoogleSheets}
-                      disabled={isBackingUp || !googleSheetId.trim()}
-                      className="min-w-[80px]"
-                    >
-                      <Cloud className="h-4 w-4 mr-1" />
-                      {isBackingUp ? 'Backing up...' : 'Backup'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={restoreFromGoogleSheets}
-                      disabled={isRestoring || !googleSheetId.trim()}
-                      className="min-w-[80px]"
-                    >
-                      <CloudDownload className="h-4 w-4 mr-1" />
-                      {isRestoring ? 'Restoring...' : 'Restore'}
-                    </Button>
-                  </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={backupToGoogleSheets}
+                    disabled={isBackingUp}
+                    className="min-w-[120px]"
+                  >
+                    <Cloud className="h-4 w-4 mr-1" />
+                    {isBackingUp ? 'Exporting...' : 'Export CSV'}
+                  </Button>
                 </div>
                 
                 <p className="text-xs text-muted-foreground">
-                  Create a Google Sheet, copy its ID from the URL, and paste it above. The sheet will be automatically formatted.
+                  Downloads a CSV file that you can import into Google Sheets. Create a new Google Sheet and import the CSV file.
                 </p>
               </div>
             </CardContent>
