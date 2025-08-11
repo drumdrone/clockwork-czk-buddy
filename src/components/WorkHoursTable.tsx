@@ -442,16 +442,12 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         setRecords(restoredData.workHoursData);
         setHourlyRate(restoredData.hourlyRate);
         setDailyHoursGoal(restoredData.dailyHoursGoal);
-        localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
-
+        
         // Persist to localStorage
         localStorage.setItem('workHoursData', JSON.stringify(restoredData.workHoursData));
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
-
-        // Notify parent component about the changes for calendar and stats updates
-        setRecords(restoredData.workHoursData);
-        setHourlyRate(restoredData.hourlyRate);
+        localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
 
         toast({ 
           title: 'Import successful', 
