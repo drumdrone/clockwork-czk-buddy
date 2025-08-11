@@ -449,6 +449,10 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
 
+        // Notify parent component about the changes for calendar and stats updates
+        setRecords(restoredData.workHoursData);
+        setHourlyRate(restoredData.hourlyRate);
+
         toast({ 
           title: 'Import successful', 
           description: 'Data imported from Google Sheet successfully.' 
