@@ -60,6 +60,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     const saved = localStorage.getItem('googleSheetId');
     return saved || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT_JmZVro__21S9k6ZE3WbwEvr-O9MwhOMesGAS_8hVzejC-RT8hpjouIXBBqOPJr-pjFTvYG6LiWsm/pub?gid=0&single=true&output=csv';
   });
+  const [webAppUrl, setWebAppUrl] = useState(() => localStorage.getItem('webAppUrl') || '');
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
@@ -350,7 +351,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
         body: {
           action: 'backup',
-          data: payload
+          data: payload,
+          webAppUrl: webAppUrl.trim() || undefined
         }
       });
 
@@ -371,6 +373,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         toast({ 
           title: 'CSV exported', 
           description: 'CSV file downloaded. Import this file into your Google Sheet.' 
+        });
+      } else {
+        toast({ 
+          title: 'Direct update successful', 
+          description: 'Data updated in Google Sheet directly via Apps Script.' 
         });
       }
     } catch (error: any) {
@@ -557,6 +564,15 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                     onChange={(e) => setGoogleSheetId(e.target.value)}
                     className="flex-1"
                   />
+                  <Input
+                    placeholder="Optional: Google Apps Script Web App URL for direct updates"
+                    value={webAppUrl}
+                    onChange={(e) => {
+                      setWebAppUrl(e.target.value);
+                      localStorage.setItem('webAppUrl', e.target.value);
+                    }}
+                    className="flex-1"
+                  />
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
@@ -566,7 +582,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                       className="min-w-[120px]"
                     >
                       <Cloud className="h-4 w-4 mr-1" />
-                      {isBackingUp ? 'Exporting...' : 'Export CSV'}
+                      {isBackingUp ? 'Updating...' : webAppUrl.trim() ? 'Update Sheet' : 'Export CSV'}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -581,9 +597,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                   </div>
                 </div>
                 
-                <p className="text-xs text-muted-foreground">
-                  Paste your Google Sheet published CSV URL above. Export creates a CSV file to import to your sheet. Import reads data directly from your published sheet.
-                </p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong>Import:</strong> Paste your Google Sheet published CSV URL above.</p>
+                  <p><strong>Export:</strong> Without Apps Script URL → Downloads CSV file to import manually.</p>
+                  <p><strong>Direct Update:</strong> With Apps Script Web App URL → Updates Google Sheet directly in real-time!</p>
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -20,18 +20,49 @@ serve(async (req) => {
     console.log('Request data:', { action, hasCsvUrl: !!csvUrl });
 
     if (action === 'backup') {
-      // Convert data to CSV format
-      const csvData = convertToCSV(data);
-      console.log('CSV data prepared, rows:', csvData.length);
+      // Direct update to Google Sheets via Apps Script
+      const { webAppUrl } = requestBody;
       
-      // Convert to CSV string
-      const csvContent = csvData.map(row => row.join(',')).join('\n');
+      if (!webAppUrl) {
+        // Fallback to CSV export if no webhook URL provided
+        const csvData = convertToCSV(data);
+        const csvContent = csvData.map(row => row.join(',')).join('\n');
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'CSV data generated successfully.',
+          csvData: csvContent
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log('Sending data to Google Apps Script:', webAppUrl);
       
-      // Return the CSV data for download
+      // Send data directly to Google Sheets via Apps Script webhook
+      const response = await fetch(webAppUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'updateSheet',
+          data: data
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Apps Script update failed:', response.status, errorText);
+        throw new Error(`Failed to update Google Sheet: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.text();
+      console.log('Apps Script response:', result);
+
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'CSV data generated successfully.',
-        csvData: csvContent
+        message: 'Data updated in Google Sheet successfully.'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
