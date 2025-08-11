@@ -113,7 +113,14 @@ function convertToCSV(data: any) {
 }
 
 function parseCSVData(csvText: string) {
+  console.log('Parsing CSV data, length:', csvText.length);
   const lines = csvText.trim().split('\n');
+  console.log('Number of lines:', lines.length);
+  
+  if (lines.length === 0) {
+    throw new Error('CSV file is empty');
+  }
+
   const rows = lines.map(line => {
     // Simple CSV parsing (handles basic cases)
     const result = [];
@@ -135,23 +142,50 @@ function parseCSVData(csvText: string) {
     return result;
   });
 
+  console.log('Sample rows:', rows.slice(0, 3));
+
+  // If the CSV doesn't have the expected structure, create default data
   if (rows.length < 5) {
-    throw new Error('Invalid CSV data structure');
+    console.log('CSV has insufficient rows, creating default data');
+    return {
+      workHoursData: {},
+      hourlyRate: 300,
+      dailyHoursGoal: 8,
+      monthlyGoal: 50000
+    };
   }
 
-  // Extract metadata
-  const hourlyRate = parseFloat(rows[1][1]) || 0;
-  const dailyHoursGoal = parseFloat(rows[2][1]) || 8;
-  const monthlyGoal = parseFloat(rows[3][1]) || 50000;
+  // Extract metadata - be more flexible with parsing
+  let hourlyRate = 300;
+  let dailyHoursGoal = 8;
+  let monthlyGoal = 50000;
+
+  // Try to find metadata rows
+  for (let i = 1; i < Math.min(5, rows.length); i++) {
+    const row = rows[i];
+    if (row[0]?.toLowerCase().includes('hourly')) {
+      hourlyRate = parseFloat(row[1]) || 300;
+    } else if (row[0]?.toLowerCase().includes('daily')) {
+      dailyHoursGoal = parseFloat(row[1]) || 8;
+    } else if (row[0]?.toLowerCase().includes('monthly')) {
+      monthlyGoal = parseFloat(row[1]) || 50000;
+    }
+  }
+
+  console.log('Extracted metadata:', { hourlyRate, dailyHoursGoal, monthlyGoal });
 
   // Extract work hours data (skip header and metadata rows)
   const workHoursData: any = {};
   
   for (let i = 5; i < rows.length; i++) {
     const row = rows[i];
-    if (row.length < 7 || !row[0]) continue;
+    if (row.length < 7 || !row[0] || row[0] === '') continue;
 
     const date = row[0];
+    
+    // Skip if date doesn't look like a date
+    if (!date.match(/\d{4}-\d{2}-\d{2}/)) continue;
+
     const interrupts = row[7] ? row[7].split(';').map((interrupt: string) => {
       const [start, end] = interrupt.split('-');
       return { start, end, type: 'break' };
@@ -171,6 +205,8 @@ function parseCSVData(csvText: string) {
       isDayOff: row[6] === 'true'
     };
   }
+
+  console.log('Extracted work hours data:', Object.keys(workHoursData).length, 'records');
 
   return {
     workHoursData,
