@@ -80,13 +80,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   // Load data from localStorage (only once on mount)
   useEffect(() => {
     const savedData = localStorage.getItem('workHoursData');
-    const savedRate = localStorage.getItem('hourlyRate');
     
     if (savedData) {
       setRecords(JSON.parse(savedData));
-    }
-    if (savedRate) {
-      setHourlyRate(Number(savedRate));
     }
   }, []); // Only run once on mount
 
