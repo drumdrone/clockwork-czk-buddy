@@ -125,7 +125,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     if (hasNewDays) {
       setRecords(newRecords);
     }
-  }, [daysInMonth, monthStart, setRecords]);
+  }, [daysInMonth, monthStart]); // Removed records dependency to prevent infinite loop
 
   const calculateWorkedHours = useCallback((startTime: string, endTime?: string, pausedTime: number = 0): number => {
     if (!startTime) return 0;
