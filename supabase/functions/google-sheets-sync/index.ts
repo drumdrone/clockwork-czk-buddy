@@ -15,8 +15,9 @@ serve(async (req) => {
   try {
     console.log('Function called with method:', req.method);
     
-    const { action, data } = await req.json();
-    console.log('Request data:', { action });
+    const requestBody = await req.json();
+    const { action, data, csvUrl } = requestBody;
+    console.log('Request data:', { action, hasCsvUrl: !!csvUrl });
 
     if (action === 'backup') {
       // Convert data to CSV format
@@ -37,19 +38,30 @@ serve(async (req) => {
 
     } else if (action === 'restore') {
       // Import from published Google Sheet CSV
-      const { csvUrl } = await req.json();
       console.log('Fetching data from CSV URL:', csvUrl);
       
-      const response = await fetch(csvUrl);
+      if (!csvUrl) {
+        throw new Error('CSV URL is required');
+      }
+      
+      const response = await fetch(csvUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Supabase Edge Function)'
+        }
+      });
+      
       if (!response.ok) {
-        throw new Error(`Failed to fetch CSV data: ${response.status}`);
+        console.error('Fetch failed:', response.status, response.statusText);
+        throw new Error(`Failed to fetch CSV data: ${response.status} ${response.statusText}`);
       }
       
       const csvText = await response.text();
       console.log('CSV data fetched, length:', csvText.length);
+      console.log('First 200 chars:', csvText.substring(0, 200));
       
       // Parse CSV data
       const restoredData = parseCSVData(csvText);
+      console.log('Parsed data:', Object.keys(restoredData));
       
       return new Response(JSON.stringify({ 
         success: true, 
