@@ -559,7 +559,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                 
                 <div className="flex flex-col gap-2">
                   <Input
-                    placeholder="Paste your published Google Sheet CSV URL here"
+                    placeholder="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv"
                     value={googleSheetId}
                     onChange={(e) => setGoogleSheetId(e.target.value)}
                     className="flex-1"
@@ -598,7 +598,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                 </div>
                 
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p><strong>Import:</strong> Paste your Google Sheet published CSV URL above.</p>
+                  <p><strong>Import:</strong> Use format: https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv</p>
                   <p><strong>Export:</strong> Without Apps Script URL → Downloads CSV file to import manually.</p>
                   <p><strong>Direct Update:</strong> With Apps Script Web App URL → Updates Google Sheet directly in real-time!</p>
                 </div>
