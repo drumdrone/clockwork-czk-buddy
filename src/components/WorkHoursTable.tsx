@@ -438,9 +438,14 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
 
+        // Force a reload of the page to ensure all components refresh properly
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+
         toast({ 
           title: 'Import successful', 
-          description: 'Data imported from Google Sheet successfully.' 
+          description: 'Data imported from Google Sheet successfully. Page will refresh shortly.' 
         });
       }
     } catch (error: any) {
