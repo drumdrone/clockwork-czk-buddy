@@ -227,16 +227,16 @@ function parseCSVData(csvText: string) {
 
     workHoursData[date] = {
       date,
-      startTime: row[1] || null,
-      endTime: row[2] || null,
-      estimatedEndTime: row[3] || '17:00',
+      startTime: row[2] || null,        // Column 2: Start Time
+      endTime: row[3] || null,          // Column 3: End Time  
+      estimatedEndTime: row[4] || '17:00', // Column 4: Estimated End
       isWorking: false,
-      workedHours: parseFloat(row[4]) || 0,
-      earnings: parseFloat(row[5]) || 0,
+      workedHours: parseFloat(row[5]) || 0,    // Column 5: Hours Worked
+      earnings: parseFloat(row[6]) || 0,       // Column 6: Earnings
       isPaused: false,
       pausedTime: 0,
       interrupts,
-      isDayOff: row[6] === 'true'
+      isDayOff: row[7] === 'true'              // Column 7: Is Day Off
     };
   }
 
