@@ -43,9 +43,19 @@ const Index = () => {
     const savedRate = localStorage.getItem('hourlyRate');
     
     if (savedData) {
-      setRecords(JSON.parse(savedData));
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed && typeof parsed === 'object') {
+          setRecords(parsed);
+        } else {
+          localStorage.removeItem('workHoursData');
+        }
+      } catch (e) {
+        console.error('Failed to parse workHoursData from localStorage', e);
+        localStorage.removeItem('workHoursData');
+      }
     }
-    if (savedRate) {
+    if (savedRate && !isNaN(Number(savedRate))) {
       setHourlyRate(Number(savedRate));
     }
   }, []);
@@ -55,6 +65,7 @@ const Index = () => {
     localStorage.setItem('hourlyRate', hourlyRate.toString());
   }, [hourlyRate]);
   const handleLogin = () => {
+    localStorage.setItem('isAuthenticated', 'true');
     setIsAuthenticated(true);
   };
 

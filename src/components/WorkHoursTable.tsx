@@ -90,7 +90,18 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     const savedData = localStorage.getItem('workHoursData');
     
     if (savedData) {
-      setRecords(JSON.parse(savedData));
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed && typeof parsed === 'object') {
+          setRecords(parsed);
+        } else {
+          console.warn('Invalid workHoursData in localStorage, resetting.');
+          localStorage.removeItem('workHoursData');
+        }
+      } catch (e) {
+        console.error('Failed to parse workHoursData. Clearing corrupted data.', e);
+        localStorage.removeItem('workHoursData');
+      }
     }
   }, []); // Only run once on mount
 
@@ -438,14 +449,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
 
-        // Force a reload of the page to ensure all components refresh properly
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-
         toast({ 
           title: 'Import successful', 
-          description: 'Data imported from Google Sheet successfully. Page will refresh shortly.' 
+          description: 'Data imported from Google Sheet successfully.' 
         });
       }
     } catch (error: any) {
