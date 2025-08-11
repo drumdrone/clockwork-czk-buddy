@@ -5,12 +5,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Calendar, CreditCard, Target } from 'lucide-react';
+import { Play, Square, Calendar, CreditCard, Target, Cloud, CloudDownload } from 'lucide-react';
 import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
 import TimeInput from './TimeInput';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TimeInterval {
   start: string;
@@ -55,6 +56,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return saved ? parseFloat(saved) : 8;
   });
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
+  const [googleSheetId, setGoogleSheetId] = useState(() => localStorage.getItem('googleSheetId') || '');
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +95,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     localStorage.setItem('workHoursData', JSON.stringify(records));
     localStorage.setItem('hourlyRate', hourlyRate.toString());
     localStorage.setItem('dailyHoursGoal', dailyHoursGoal.toString());
-  }, [records, hourlyRate, dailyHoursGoal]);
+    localStorage.setItem('googleSheetId', googleSheetId);
+  }, [records, hourlyRate, dailyHoursGoal, googleSheetId]);
 
   // Initialize days for current month
   useEffect(() => {
@@ -329,6 +334,103 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     }
   };
 
+  const backupToGoogleSheets = async () => {
+    if (!googleSheetId.trim()) {
+      toast({ 
+        title: 'Google Sheet ID required', 
+        description: 'Please enter your Google Sheet ID first.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    setIsBackingUp(true);
+    try {
+      const payload = {
+        workHoursData: records,
+        hourlyRate,
+        dailyHoursGoal,
+        monthlyGoal: parseFloat(localStorage.getItem('monthlyGoal') || '50000'),
+      };
+
+      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+        body: {
+          action: 'backup',
+          data: payload,
+          spreadsheetId: googleSheetId,
+          range: 'WorkHours!A1:H'
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ 
+        title: 'Backup successful', 
+        description: 'Data backed up to Google Sheets successfully.' 
+      });
+    } catch (error: any) {
+      console.error('Backup failed:', error);
+      toast({ 
+        title: 'Backup failed', 
+        description: error.message || 'Failed to backup to Google Sheets.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const restoreFromGoogleSheets = async () => {
+    if (!googleSheetId.trim()) {
+      toast({ 
+        title: 'Google Sheet ID required', 
+        description: 'Please enter your Google Sheet ID first.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    setIsRestoring(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+        body: {
+          action: 'restore',
+          spreadsheetId: googleSheetId,
+          range: 'WorkHours!A1:H'
+        }
+      });
+
+      if (error) throw error;
+
+      const restoredData = data.data;
+      
+      // Apply restored state
+      setRecords(restoredData.workHoursData);
+      if (typeof restoredData.hourlyRate === 'number') setHourlyRate(restoredData.hourlyRate);
+      if (typeof restoredData.dailyHoursGoal === 'number') setDailyHoursGoal(restoredData.dailyHoursGoal);
+      if (typeof restoredData.monthlyGoal === 'number') localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
+
+      // Persist to localStorage
+      localStorage.setItem('workHoursData', JSON.stringify(restoredData.workHoursData));
+      if (typeof restoredData.hourlyRate === 'number') localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
+      if (typeof restoredData.dailyHoursGoal === 'number') localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
+
+      toast({ 
+        title: 'Restore successful', 
+        description: 'Data restored from Google Sheets successfully.' 
+      });
+    } catch (error: any) {
+      console.error('Restore failed:', error);
+      toast({ 
+        title: 'Restore failed', 
+        description: error.message || 'Failed to restore from Google Sheets.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
       style: 'currency',
@@ -393,10 +495,10 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                 </span>
               </div>
               <Button variant="outline" size="sm" onClick={exportBackup} className="h-8">
-                Backup
+                Backup JSON
               </Button>
               <Button variant="outline" size="sm" onClick={handleImportClick} className="h-8">
-                Restore
+                Restore JSON
               </Button>
               <input type="file" accept="application/json" ref={fileInputRef} onChange={handleImportChange} className="hidden" />
             </div>
@@ -418,6 +520,56 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-6">
+          {/* Google Sheets Backup Section */}
+          <Card className="border-primary/10 mb-6">
+            <CardContent className="pt-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <Cloud className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Google Sheets Backup</p>
+                    <p className="text-xs text-muted-foreground">Sync your data with Google Sheets</p>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    placeholder="Enter Google Sheet ID (e.g., 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms)"
+                    value={googleSheetId}
+                    onChange={(e) => setGoogleSheetId(e.target.value)}
+                    className="flex-1"
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={backupToGoogleSheets}
+                      disabled={isBackingUp || !googleSheetId.trim()}
+                      className="min-w-[80px]"
+                    >
+                      <Cloud className="h-4 w-4 mr-1" />
+                      {isBackingUp ? 'Backing up...' : 'Backup'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={restoreFromGoogleSheets}
+                      disabled={isRestoring || !googleSheetId.trim()}
+                      className="min-w-[80px]"
+                    >
+                      <CloudDownload className="h-4 w-4 mr-1" />
+                      {isRestoring ? 'Restoring...' : 'Restore'}
+                    </Button>
+                  </div>
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Create a Google Sheet, copy its ID from the URL, and paste it above. The sheet will be automatically formatted.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Card className="border-primary/10">
               <CardContent className="pt-4">

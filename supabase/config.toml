@@ -1,1 +1,43 @@
 project_id = "nvehseiryrmpufftznam"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[ingest]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+image_transformation = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://nvehseiryrmpufftznam.supabase.co"]
+jwt_expiry = 3600
+enable_signup = true
+email_double_confirm_changes = false
+enable_manual_linking = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
+
+[edge_functions]
+enabled = true
+
+[functions.google-sheets-sync]
+verify_jwt = false
