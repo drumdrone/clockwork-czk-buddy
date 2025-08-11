@@ -36,13 +36,29 @@ serve(async (req) => {
       });
 
     } else if (action === 'restore') {
-      // For restore, we'll need the user to provide CSV data
+      // Import from published Google Sheet CSV
+      const { csvUrl } = await req.json();
+      console.log('Fetching data from CSV URL:', csvUrl);
+      
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CSV data: ${response.status}`);
+      }
+      
+      const csvText = await response.text();
+      console.log('CSV data fetched, length:', csvText.length);
+      
+      // Parse CSV data
+      const restoredData = parseCSVData(csvText);
+      
       return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'Please use the JSON backup/restore feature instead.' 
+        success: true, 
+        message: 'Data imported from Google Sheet successfully.',
+        data: restoredData
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+
     }
 
     throw new Error('Invalid action');
@@ -82,4 +98,72 @@ function convertToCSV(data: any) {
   });
 
   return rows;
+}
+
+function parseCSVData(csvText: string) {
+  const lines = csvText.trim().split('\n');
+  const rows = lines.map(line => {
+    // Simple CSV parsing (handles basic cases)
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  });
+
+  if (rows.length < 5) {
+    throw new Error('Invalid CSV data structure');
+  }
+
+  // Extract metadata
+  const hourlyRate = parseFloat(rows[1][1]) || 0;
+  const dailyHoursGoal = parseFloat(rows[2][1]) || 8;
+  const monthlyGoal = parseFloat(rows[3][1]) || 50000;
+
+  // Extract work hours data (skip header and metadata rows)
+  const workHoursData: any = {};
+  
+  for (let i = 5; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length < 7 || !row[0]) continue;
+
+    const date = row[0];
+    const interrupts = row[7] ? row[7].split(';').map((interrupt: string) => {
+      const [start, end] = interrupt.split('-');
+      return { start, end, type: 'break' };
+    }) : [];
+
+    workHoursData[date] = {
+      date,
+      startTime: row[1] || null,
+      endTime: row[2] || null,
+      estimatedEndTime: row[3] || '17:00',
+      isWorking: false,
+      workedHours: parseFloat(row[4]) || 0,
+      earnings: parseFloat(row[5]) || 0,
+      isPaused: false,
+      pausedTime: 0,
+      interrupts,
+      isDayOff: row[6] === 'true'
+    };
+  }
+
+  return {
+    workHoursData,
+    hourlyRate,
+    dailyHoursGoal,
+    monthlyGoal
+  };
 }

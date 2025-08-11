@@ -56,7 +56,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return saved ? parseFloat(saved) : 8;
   });
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
-  const [googleSheetId, setGoogleSheetId] = useState(() => localStorage.getItem('googleSheetId') || '');
+  const [googleSheetId, setGoogleSheetId] = useState(() => localStorage.getItem('googleSheetId') || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT_JmZVro__21S9k6ZE3WbwEvr-O9MwhOMesGAS_8hVzejC-RT8hpjouIXBBqOPJr-pjFTvYG6LiWsm/pub?gid=0&single=true&output=csv');
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
@@ -385,8 +385,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   const restoreFromGoogleSheets = async () => {
     if (!googleSheetId.trim()) {
       toast({ 
-        title: 'Google Sheet ID required', 
-        description: 'Please enter your Google Sheet ID first.',
+        title: 'Google Sheet CSV URL required', 
+        description: 'Please enter your published Google Sheet CSV URL first.',
         variant: 'destructive' 
       });
       return;
@@ -397,41 +397,43 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
         body: {
           action: 'restore',
-          spreadsheetId: googleSheetId,
-          range: 'WorkHours!A1:H'
+          csvUrl: googleSheetId
         }
       });
 
       if (error) throw error;
 
-      const restoredData = data.data;
-      
-      // Apply restored state
-      setRecords(restoredData.workHoursData);
-      if (typeof restoredData.hourlyRate === 'number') setHourlyRate(restoredData.hourlyRate);
-      if (typeof restoredData.dailyHoursGoal === 'number') setDailyHoursGoal(restoredData.dailyHoursGoal);
-      if (typeof restoredData.monthlyGoal === 'number') localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
+      if (data?.data) {
+        const restoredData = data.data;
+        
+        // Update all the state with restored data
+        setRecords(restoredData.workHoursData);
+        setHourlyRate(restoredData.hourlyRate);
+        setDailyHoursGoal(restoredData.dailyHoursGoal);
+        localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
 
-      // Persist to localStorage
-      localStorage.setItem('workHoursData', JSON.stringify(restoredData.workHoursData));
-      if (typeof restoredData.hourlyRate === 'number') localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
-      if (typeof restoredData.dailyHoursGoal === 'number') localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
+        // Persist to localStorage
+        localStorage.setItem('workHoursData', JSON.stringify(restoredData.workHoursData));
+        localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
+        localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
 
-      toast({ 
-        title: 'Restore successful', 
-        description: 'Data restored from Google Sheets successfully.' 
-      });
+        toast({ 
+          title: 'Import successful', 
+          description: 'Data imported from Google Sheet successfully.' 
+        });
+      }
     } catch (error: any) {
-      console.error('Restore failed:', error);
+      console.error('Import failed:', error);
       toast({ 
-        title: 'Restore failed', 
-        description: error.message || 'Failed to restore from Google Sheets.',
+        title: 'Import failed', 
+        description: error.message || 'Failed to import from Google Sheet.',
         variant: 'destructive' 
       });
     } finally {
       setIsRestoring(false);
     }
   };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
@@ -522,33 +524,51 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {/* CSV Export Section */}
+          {/* Google Sheets Integration */}
           <Card className="border-primary/10 mb-6">
             <CardContent className="pt-4">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <Cloud className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-sm font-medium">CSV Export</p>
-                    <p className="text-xs text-muted-foreground">Export your data as CSV for Google Sheets</p>
+                    <p className="text-sm font-medium">Google Sheets Integration</p>
+                    <p className="text-xs text-muted-foreground">Real-time sync with your published Google Sheet</p>
                   </div>
                 </div>
                 
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={backupToGoogleSheets}
-                    disabled={isBackingUp}
-                    className="min-w-[120px]"
-                  >
-                    <Cloud className="h-4 w-4 mr-1" />
-                    {isBackingUp ? 'Exporting...' : 'Export CSV'}
-                  </Button>
+                <div className="flex flex-col gap-2">
+                  <Input
+                    placeholder="Paste your published Google Sheet CSV URL here"
+                    value={googleSheetId}
+                    onChange={(e) => setGoogleSheetId(e.target.value)}
+                    className="flex-1"
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={backupToGoogleSheets}
+                      disabled={isBackingUp}
+                      className="min-w-[120px]"
+                    >
+                      <Cloud className="h-4 w-4 mr-1" />
+                      {isBackingUp ? 'Exporting...' : 'Export CSV'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={restoreFromGoogleSheets}
+                      disabled={isRestoring || !googleSheetId.trim()}
+                      className="min-w-[120px]"
+                    >
+                      <CloudDownload className="h-4 w-4 mr-1" />
+                      {isRestoring ? 'Importing...' : 'Import from Sheet'}
+                    </Button>
+                  </div>
                 </div>
                 
                 <p className="text-xs text-muted-foreground">
-                  Downloads a CSV file that you can import into Google Sheets. Create a new Google Sheet and import the CSV file.
+                  Paste your Google Sheet published CSV URL above. Export creates a CSV file to import to your sheet. Import reads data directly from your published sheet.
                 </p>
               </div>
             </CardContent>
