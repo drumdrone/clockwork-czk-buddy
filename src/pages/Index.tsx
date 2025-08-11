@@ -50,6 +50,10 @@ const Index = () => {
     }
   }, []);
 
+  // Save hourlyRate to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('hourlyRate', hourlyRate.toString());
+  }, [hourlyRate]);
   const handleLogin = () => {
     setIsAuthenticated(true);
   };
