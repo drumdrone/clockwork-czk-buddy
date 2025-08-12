@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -438,22 +439,34 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       if (data?.data) {
         const restoredData = data.data;
         
-        // Recalculate earnings based on current hourly rate for all imported records
-        const recalculatedWorkHoursData = { ...restoredData.workHoursData };
-        Object.keys(recalculatedWorkHoursData).forEach(date => {
-          const record = recalculatedWorkHoursData[date];
-          if (record.workedHours) {
+        // Process the imported data to ensure proper state
+        const processedWorkHoursData = { ...restoredData.workHoursData };
+        Object.keys(processedWorkHoursData).forEach(date => {
+          const record = processedWorkHoursData[date];
+          
+          // Ensure proper data structure and defaults
+          record.isWorking = false; // Never import as currently working
+          record.isPaused = false;
+          record.pausedTime = record.pausedTime || 0;
+          record.interrupts = record.interrupts || [];
+          record.isDayOff = record.isDayOff || false;
+          record.estimatedEndTime = record.estimatedEndTime || '17:00';
+          
+          // Recalculate earnings with current hourly rate
+          if (record.workedHours > 0) {
             record.earnings = record.workedHours * restoredData.hourlyRate;
+          } else {
+            record.earnings = 0;
           }
         });
         
-        // Update all the state with recalculated data
-        setRecords(recalculatedWorkHoursData);
+        // Update all the state with processed data
+        setRecords(processedWorkHoursData);
         setHourlyRate(restoredData.hourlyRate);
         setDailyHoursGoal(restoredData.dailyHoursGoal);
         
         // Persist to localStorage
-        localStorage.setItem('workHoursData', JSON.stringify(recalculatedWorkHoursData));
+        localStorage.setItem('workHoursData', JSON.stringify(processedWorkHoursData));
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
         localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
