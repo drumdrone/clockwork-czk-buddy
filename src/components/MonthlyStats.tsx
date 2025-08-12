@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Download, Calendar, Clock, CreditCard, TrendingUp, Target, Edit2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend } from 'date-fns';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 
 interface DayRecord {
   date: string;
@@ -93,6 +95,21 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   };
 
   const dailyStats = getDailyStats();
+  const chartData = dailyStats
+    .slice()
+    .sort((a, b) => parseDateLocal(a.date).getTime() - parseDateLocal(b.date).getTime())
+    .map((record) => ({
+      day: format(parseDateLocal(record.date), 'd'),
+      date: record.date,
+      hours: Number(record.workedHours.toFixed(2)),
+      earnings: Math.round(record.workedHours * hourlyRate),
+    }));
+  const chartConfig = {
+    hours: {
+      label: 'Hours worked',
+      color: 'hsl(var(--primary))',
+    },
+  } as const;
   const totalHours = dailyStats.reduce((sum, record) => sum + record.workedHours, 0);
   // Recalculate earnings based on current hourly rate instead of using stored earnings
   const totalEarnings = dailyStats.reduce((sum, record) => sum + (record.workedHours * hourlyRate), 0);
@@ -250,7 +267,7 @@ const remainingDays = eachDayOfInterval({
             </CardContent>
           </Card>
 
-          {/* Daily Cards */}
+          {/* Daily Breakdown - Bar Chart */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Daily Breakdown</h3>
             {dailyStats.length === 0 ? (
@@ -260,51 +277,19 @@ const remainingDays = eachDayOfInterval({
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dailyStats.map((record) => (
-                  <Card key={record.date} className="border-primary/10 hover:border-primary/20 transition-colors">
-                    <CardContent className="pt-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-lg">
-                              {format(parseDateLocal(record.date), 'dd')}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(parseDateLocal(record.date), 'EEEE')}
-                            </p>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {format(parseDateLocal(record.date), 'MMM')}
-                          </Badge>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-success" />
-                            <span className="text-sm font-medium text-success">
-                              {formatHours(record.workedHours)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-medium text-primary">
-                              {formatCurrency(record.workedHours * hourlyRate)}
-                            </span>
-                          </div>
-
-                          {record.startTime && record.endTime && (
-                            <div className="text-xs text-muted-foreground font-mono">
-                              {record.startTime} - {record.endTime}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <Card className="border-primary/10">
+                <CardContent className="pt-6">
+                  <ChartContainer config={chartConfig} className="h-72 w-full">
+                    <BarChart data={chartData} margin={{ left: 12, right: 12 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="hours" fill="var(--color-hours)" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
             )}
           </div>
         </CardContent>
