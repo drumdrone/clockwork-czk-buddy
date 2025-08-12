@@ -330,14 +330,15 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       const data = json.data || json;
       if (!data.workHoursData) throw new Error('Invalid backup file');
 
-      // Apply state
-      setRecords(data.workHoursData);
+      const rate = typeof data.hourlyRate === 'number' ? data.hourlyRate : hourlyRate;
+      const processedWorkHoursData = recomputeImportedData(data.workHoursData, rate);
+
+      setRecords(processedWorkHoursData);
       if (typeof data.hourlyRate === 'number') setHourlyRate(data.hourlyRate);
       if (typeof data.dailyHoursGoal === 'number') setDailyHoursGoal(data.dailyHoursGoal);
       if (typeof data.monthlyGoal === 'number') localStorage.setItem('monthlyGoal', String(data.monthlyGoal));
 
-      // Persist to localStorage
-      localStorage.setItem('workHoursData', JSON.stringify(data.workHoursData));
+      localStorage.setItem('workHoursData', JSON.stringify(processedWorkHoursData));
       if (typeof data.hourlyRate === 'number') localStorage.setItem('hourlyRate', String(data.hourlyRate));
       if (typeof data.dailyHoursGoal === 'number') localStorage.setItem('dailyHoursGoal', String(data.dailyHoursGoal));
 
@@ -432,34 +433,12 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
       if (data?.data) {
         const restoredData = data.data;
-        
-        // Process the imported data to ensure proper state
-        const processedWorkHoursData = { ...restoredData.workHoursData };
-        Object.keys(processedWorkHoursData).forEach(date => {
-          const record = processedWorkHoursData[date];
-          
-          // Ensure proper data structure and defaults
-          record.isWorking = false; // Never import as currently working
-          record.isPaused = false;
-          record.pausedTime = record.pausedTime || 0;
-          record.interrupts = record.interrupts || [];
-          record.isDayOff = record.isDayOff || false;
-          record.estimatedEndTime = record.estimatedEndTime || '17:00';
-          
-          // Recalculate earnings with current hourly rate
-          if (record.workedHours > 0) {
-            record.earnings = record.workedHours * restoredData.hourlyRate;
-          } else {
-            record.earnings = 0;
-          }
-        });
-        
-        // Update all the state with processed data
+        const processedWorkHoursData = recomputeImportedData(restoredData.workHoursData, restoredData.hourlyRate);
+
         setRecords(processedWorkHoursData);
         setHourlyRate(restoredData.hourlyRate);
         setDailyHoursGoal(restoredData.dailyHoursGoal);
         
-        // Persist to localStorage
         localStorage.setItem('workHoursData', JSON.stringify(processedWorkHoursData));
         localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
         localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
@@ -504,6 +483,52 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return new Date(y, (m || 1) - 1, d || 1);
   };
 
+  // Parse "HH:mm" to minutes since midnight
+  const parseTimeToMinutes = (t?: string | null) => {
+    if (!t || typeof t !== 'string') return null;
+    const [h, m] = t.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  };
+
+  // Compute worked hours for a single record using times and breaks
+  const computeWorkedHoursForRecord = (rec: DayRecord): number => {
+    const s = parseTimeToMinutes(rec.startTime);
+    const e = parseTimeToMinutes(rec.endTime);
+    if (s == null || e == null) return 0;
+    let minutes = Math.max(0, e - s);
+
+    const breaks = (rec.interrupts || []).reduce((acc: number, it: any) => {
+      const sb = parseTimeToMinutes(it.start);
+      const eb = parseTimeToMinutes(it.end);
+      if (sb == null || eb == null) return acc;
+      return acc + Math.max(0, eb - sb);
+    }, 0);
+
+    // Subtract breaks and paused time (pausedTime stored in ms)
+    minutes = Math.max(0, minutes - breaks - Math.floor((rec.pausedTime || 0) / 60000));
+
+    return minutes / 60;
+  };
+
+  // Normalize and recompute imported data
+  const recomputeImportedData = (incoming: { [key: string]: DayRecord }, rate: number) => {
+    const result: { [key: string]: DayRecord } = { ...incoming };
+    Object.keys(result).forEach((date) => {
+      const r = result[date];
+      r.isWorking = false;
+      r.isPaused = false;
+      r.pausedTime = r.pausedTime || 0;
+      r.interrupts = (r as any).interrupts || [];
+      (r as any).isDayOff = (r as any).isDayOff || false;
+      r.estimatedEndTime = r.estimatedEndTime || '17:00';
+
+      const computed = (!r.workedHours || r.workedHours <= 0) ? computeWorkedHoursForRecord(r) : r.workedHours;
+      r.workedHours = computed;
+      r.earnings = computed * rate;
+    });
+    return result;
+  };
   // Monthly totals for selected month
   const monthlyRecords = Object.values(records).filter((record) => {
     const d = parseDateLocal(record.date);
