@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           color: string
           created_at: string
+          format: string | null
           id: string
           is_active: boolean
           name: string
@@ -25,6 +26,35 @@ export type Database = {
         }
         Insert: {
           color: string
+          created_at?: string
+          format?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          format?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      formats: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -83,7 +113,7 @@ export type Database = {
           section_data?: Json
           section_order?: number
           updated_at?: string
-          user_id?: string
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -254,6 +284,36 @@ export type Database = {
           id?: string
           note?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          created_at: string
+          daily_hours_goal: number | null
+          google_sheet_id: string | null
+          hourly_rate: number | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_hours_goal?: number | null
+          google_sheet_id?: string | null
+          hourly_rate?: number | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_hours_goal?: number | null
+          google_sheet_id?: string | null
+          hourly_rate?: number | null
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -478,6 +538,60 @@ export type Database = {
           transaction_id?: string | null
           updated_at?: string
           version?: string | null
+        }
+        Relationships: []
+      }
+      work_records: {
+        Row: {
+          created_at: string
+          date: string
+          earnings: number | null
+          end_time: string | null
+          estimated_end_time: string | null
+          id: string
+          interrupts: Json | null
+          is_day_off: boolean | null
+          is_paused: boolean | null
+          is_working: boolean | null
+          paused_time: number | null
+          start_time: string | null
+          updated_at: string
+          user_id: string
+          worked_hours: number | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          earnings?: number | null
+          end_time?: string | null
+          estimated_end_time?: string | null
+          id?: string
+          interrupts?: Json | null
+          is_day_off?: boolean | null
+          is_paused?: boolean | null
+          is_working?: boolean | null
+          paused_time?: number | null
+          start_time?: string | null
+          updated_at?: string
+          user_id: string
+          worked_hours?: number | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          earnings?: number | null
+          end_time?: string | null
+          estimated_end_time?: string | null
+          id?: string
+          interrupts?: Json | null
+          is_day_off?: boolean | null
+          is_paused?: boolean | null
+          is_working?: boolean | null
+          paused_time?: number | null
+          start_time?: string | null
+          updated_at?: string
+          user_id?: string
+          worked_hours?: number | null
         }
         Relationships: []
       }
