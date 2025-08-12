@@ -34,6 +34,12 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   });
   const [isEditingGoal, setIsEditingGoal] = useState(false);
 
+  // Parse YYYY-MM-DD as local Date to avoid timezone shifts
+  const parseDateLocal = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+
   useEffect(() => {
     localStorage.setItem('monthlyGoal', monthlyGoal.toString());
   }, [monthlyGoal]);
@@ -55,14 +61,14 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
 
   const getDailyStats = () => {
     const currentMonthRecords = Object.values(records).filter(record => {
-      const recordDate = new Date(record.date);
+      const recordDate = parseDateLocal(record.date);
       return recordDate.getMonth() === selectedMonth.getMonth() && 
              recordDate.getFullYear() === selectedMonth.getFullYear();
     });
 
     return currentMonthRecords
       .filter(record => record.workedHours > 0)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
   };
 
   const exportToGoogleSheets = () => {
@@ -71,7 +77,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
       ['Date', 'Day', 'Hours', 'Earnings (CZK)', 'Start Time', 'End Time'],
       ...dailyStats.map(record => [
         record.date,
-        format(new Date(record.date), 'EEEE'),
+        format(parseDateLocal(record.date), 'EEEE'),
         record.workedHours.toFixed(2),
         (record.workedHours * hourlyRate).toFixed(0),
         record.startTime || '',
@@ -262,14 +268,14 @@ const remainingDays = eachDayOfInterval({
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-semibold text-lg">
-                              {format(new Date(record.date), 'dd')}
+                              {format(parseDateLocal(record.date), 'dd')}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {format(new Date(record.date), 'EEEE')}
+                              {format(parseDateLocal(record.date), 'EEEE')}
                             </p>
                           </div>
                           <Badge variant="outline" className="text-xs">
-                            {format(new Date(record.date), 'MMM')}
+                            {format(parseDateLocal(record.date), 'MMM')}
                           </Badge>
                         </div>
                         

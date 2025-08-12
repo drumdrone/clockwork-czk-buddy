@@ -30,6 +30,12 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);
   
+  // Parse YYYY-MM-DD as local Date to avoid timezone shifts
+  const parseDateLocal = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+  
   // Generate month tabs (last 6 months + current + next 2)
   const monthTabs = Array.from({ length: 9 }, (_, i) => {
     const monthDate = new Date();
@@ -69,7 +75,7 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
 
   // Calculate monthly totals
   const monthlyRecords = Object.values(records).filter(record => {
-    const recordDate = new Date(record.date);
+    const recordDate = parseDateLocal(record.date);
     return recordDate >= monthStart && recordDate <= monthEnd;
   });
 
