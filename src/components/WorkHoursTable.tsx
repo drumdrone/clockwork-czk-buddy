@@ -514,18 +514,32 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   // Normalize and recompute imported data
   const recomputeImportedData = (incoming: { [key: string]: DayRecord }, rate: number) => {
     const result: { [key: string]: DayRecord } = { ...incoming };
-    Object.keys(result).forEach((date) => {
-      const r = result[date];
-      r.isWorking = false;
+    Object.keys(result).forEach((dateKey) => {
+      const r: any = result[dateKey] as any;
+
+      // Ensure required fields exist
+      r.date = r.date || dateKey;
+      if (typeof r.startTime === 'string') r.startTime = r.startTime.trim();
+      if (typeof r.endTime === 'string') r.endTime = r.endTime.trim();
+
+      r.isWorking = false; // never import as running
       r.isPaused = false;
-      r.pausedTime = r.pausedTime || 0;
-      r.interrupts = (r as any).interrupts || [];
-      (r as any).isDayOff = (r as any).isDayOff || false;
+      r.pausedTime = typeof r.pausedTime === 'number' ? r.pausedTime : Number(r.pausedTime) || 0;
+      r.interrupts = Array.isArray(r.interrupts) ? r.interrupts : [];
+      r.isDayOff = !!r.isDayOff;
       r.estimatedEndTime = r.estimatedEndTime || '17:00';
 
-      const computed = (!r.workedHours || r.workedHours <= 0) ? computeWorkedHoursForRecord(r) : r.workedHours;
+      // Coerce workedHours to a number if it came as string (e.g. "7,5")
+      let wh = r.workedHours;
+      if (typeof wh !== 'number' || !isFinite(wh)) {
+        const parsed = Number(String(wh ?? '').replace(',', '.'));
+        wh = Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      // Compute from times when missing or zero
+      const computed = wh > 0 ? wh : computeWorkedHoursForRecord(r);
       r.workedHours = computed;
-      r.earnings = computed * rate;
+      r.earnings = Math.max(0, computed * (typeof rate === 'number' && isFinite(rate) ? rate : 0));
     });
     return result;
   };
