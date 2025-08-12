@@ -61,7 +61,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     const saved = localStorage.getItem('googleSheetId');
     return saved || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT_JmZVro__21S9k6ZE3WbwEvr-O9MwhOMesGAS_8hVzejC-RT8hpjouIXBBqOPJr-pjFTvYG6LiWsm/pub?gid=0&single=true&output=csv';
   });
-  const [webAppUrl, setWebAppUrl] = useState(() => localStorage.getItem('webAppUrl') || '');
+  
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
@@ -363,8 +363,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
         body: {
           action: 'backup',
-          data: payload,
-          webAppUrl: webAppUrl.trim() || undefined
+          data: payload
         }
       });
 
@@ -385,11 +384,6 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         toast({ 
           title: 'CSV exported', 
           description: 'CSV file downloaded. Import this file into your Google Sheet.' 
-        });
-      } else {
-        toast({ 
-          title: 'Direct update successful', 
-          description: 'Data updated in Google Sheet directly via Apps Script.' 
         });
       }
     } catch (error: any) {
@@ -504,9 +498,19 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     return `${h}h ${m}m`;
   };
 
-  // Recalculate earnings based on current hourly rate instead of using stored earnings
-  const totalEarnings = Object.values(records).reduce((sum, record) => sum + (record.workedHours * hourlyRate), 0);
-  const totalHours = Object.values(records).reduce((sum, record) => sum + record.workedHours, 0);
+  // Helper to parse YYYY-MM-DD as local date
+  const parseDateLocal = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+
+  // Monthly totals for selected month
+  const monthlyRecords = Object.values(records).filter((record) => {
+    const d = parseDateLocal(record.date);
+    return d.getMonth() === currentMonth.getMonth() && d.getFullYear() === currentMonth.getFullYear();
+  });
+  const totalEarnings = monthlyRecords.reduce((sum, record) => sum + (record.workedHours * hourlyRate), 0);
+  const totalHours = monthlyRecords.reduce((sum, record) => sum + record.workedHours, 0);
 
   // Monthly goal calculations
   const monthlyGoal = parseFloat(localStorage.getItem('monthlyGoal') || '50000');
@@ -597,15 +601,6 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                     onChange={(e) => setGoogleSheetId(e.target.value)}
                     className="flex-1"
                   />
-                  <Input
-                    placeholder="Optional: Google Apps Script Web App URL for direct updates"
-                    value={webAppUrl}
-                    onChange={(e) => {
-                      setWebAppUrl(e.target.value);
-                      localStorage.setItem('webAppUrl', e.target.value);
-                    }}
-                    className="flex-1"
-                  />
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
@@ -615,7 +610,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                       className="min-w-[120px]"
                     >
                       <Cloud className="h-4 w-4 mr-1" />
-                      {isBackingUp ? 'Updating...' : webAppUrl.trim() ? 'Update Sheet' : 'Export CSV'}
+                      {isBackingUp ? 'Exporting...' : 'Export CSV'}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -632,8 +627,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                 
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p><strong>Import:</strong> Use format: https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv</p>
-                  <p><strong>Export:</strong> Without Apps Script URL → Downloads CSV file to import manually.</p>
-                  <p><strong>Direct Update:</strong> With Apps Script Web App URL → Updates Google Sheet directly in real-time!</p>
+                  <p><strong>Export:</strong> Downloads a CSV file you can import into your Google Sheet.</p>
                 </div>
               </div>
             </CardContent>
