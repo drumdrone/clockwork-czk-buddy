@@ -40,4 +40,4 @@ enable_confirmations = false
 enabled = true
 
 [functions.google-sheets-sync]
-verify_jwt = false
+verify_jwt = true

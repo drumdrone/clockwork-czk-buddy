@@ -3,7 +3,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkHoursTable from '@/components/WorkHoursTable';
 import MonthlyStats from '@/components/MonthlyStats';
 import MonthlyCalendar from '@/components/MonthlyCalendar';
-import Login from '@/components/Login';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import { useNavigate } from 'react-router-dom';
+import { cleanupAuthState } from '@/utils/auth';
 
 interface TimeInterval {
   start: string;
@@ -29,13 +32,9 @@ const Index = () => {
   const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [hourlyRate, setHourlyRate] = useState<number>(300);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-
-  // Check authentication status on mount
-  useEffect(() => {
-    const authStatus = localStorage.getItem('isAuthenticated');
-    setIsAuthenticated(authStatus === 'true');
-  }, []);
+  const [initialized, setInitialized] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Load data from localStorage
   useEffect(() => {
@@ -60,24 +59,42 @@ const Index = () => {
     }
   }, []);
 
-  // Save hourlyRate to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('hourlyRate', hourlyRate.toString());
-  }, [hourlyRate]);
-  const handleLogin = () => {
-    localStorage.setItem('isAuthenticated', 'true');
-    setIsAuthenticated(true);
-  };
+// Save hourlyRate to localStorage when it changes
+useEffect(() => {
+  localStorage.setItem('hourlyRate', hourlyRate.toString());
+}, [hourlyRate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    setIsAuthenticated(false);
-  };
+// Enforce authentication and keep session in sync
+useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    if (!session) {
+      navigate('/auth');
+    }
+  });
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) {
+      navigate('/auth');
+    }
+    setInitialized(true);
+  });
+
+  return () => subscription.unsubscribe();
+}, [navigate]);
+
+const handleLogout = async () => {
+  try {
+    cleanupAuthState();
+    try { await supabase.auth.signOut({ scope: 'global' }); } catch {}
+  } finally {
+    window.location.href = '/auth';
   }
+};
+
+// Wait for auth initialization to avoid flicker
+if (!initialized) {
+  return null;
+}
 
   return (
     <div className="min-h-screen bg-background">
