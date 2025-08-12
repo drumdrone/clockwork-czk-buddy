@@ -3,10 +3,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkHoursTable from '@/components/WorkHoursTable';
 import MonthlyStats from '@/components/MonthlyStats';
 import MonthlyCalendar from '@/components/MonthlyCalendar';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
-import { useNavigate } from 'react-router-dom';
-import { cleanupAuthState } from '@/utils/auth';
 
 interface TimeInterval {
   start: string;
@@ -32,9 +28,7 @@ const Index = () => {
   const [records, setRecords] = useState<{ [key: string]: DayRecord }>({});
   const [hourlyRate, setHourlyRate] = useState<number>(300);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [initialized, setInitialized] = useState(false);
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  
 
   // Load data from localStorage
   useEffect(() => {
@@ -64,37 +58,8 @@ useEffect(() => {
   localStorage.setItem('hourlyRate', hourlyRate.toString());
 }, [hourlyRate]);
 
-// Enforce authentication and keep session in sync
-useEffect(() => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    if (!session) {
-      navigate('/auth');
-    }
-  });
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session) {
-      navigate('/auth');
-    }
-    setInitialized(true);
-  });
 
-  return () => subscription.unsubscribe();
-}, [navigate]);
-
-const handleLogout = async () => {
-  try {
-    cleanupAuthState();
-    try { await supabase.auth.signOut({ scope: 'global' }); } catch {}
-  } finally {
-    window.location.href = '/auth';
-  }
-};
-
-// Wait for auth initialization to avoid flicker
-if (!initialized) {
-  return null;
-}
 
   return (
     <div className="min-h-screen bg-background">
@@ -113,12 +78,6 @@ if (!initialized) {
                   Monthly Stats
                 </TabsTrigger>
               </TabsList>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Logout
-              </button>
             </div>
           </div>
         </div>

@@ -40,11 +40,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Require JWT (also enforced by verify_jwt = true)
-  const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
+  // Public endpoint: no JWT required. Rely on strict host allowlists, HTTPS checks, and timeouts.
 
   try {
     const requestBody = await req.json();
