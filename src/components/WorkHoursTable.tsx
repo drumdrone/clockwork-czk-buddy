@@ -38,7 +38,7 @@ interface WorkHoursTableProps {
   selectedMonth: Date;
   setSelectedMonth: (month: Date) => void;
   records: { [key: string]: DayRecord };
-  setRecords: (records: { [key: string]: DayRecord }) => void;
+  setRecords: React.Dispatch<React.SetStateAction<{ [key: string]: DayRecord }>>;
   hourlyRate: number;
   setHourlyRate: (rate: number) => void;
 }
@@ -114,35 +114,35 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     localStorage.setItem('googleSheetId', googleSheetId);
   }, [records, hourlyRate, dailyHoursGoal, googleSheetId]);
 
-  // Initialize days for current month
+  // Initialize days for current month using functional state update to avoid clobbering imported data
   useEffect(() => {
-    const newRecords = { ...records };
-    let hasNewDays = false;
-    
-    for (let i = 0; i < daysInMonth; i++) {
-      const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
-      if (!newRecords[date]) {
-        newRecords[date] = {
-          date,
-          startTime: null,
-          endTime: null,
-          estimatedEndTime: '17:00',
-          isWorking: false,
-          workedHours: 0,
-          earnings: 0,
-          isPaused: false,
-          pausedTime: 0,
-          interrupts: [],
-          isDayOff: false,
-        };
-        hasNewDays = true;
+    setRecords((prev) => {
+      const newRecords = { ...prev };
+      let hasNewDays = false;
+
+      for (let i = 0; i < daysInMonth; i++) {
+        const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
+        if (!newRecords[date]) {
+          newRecords[date] = {
+            date,
+            startTime: null,
+            endTime: null,
+            estimatedEndTime: '17:00',
+            isWorking: false,
+            workedHours: 0,
+            earnings: 0,
+            isPaused: false,
+            pausedTime: 0,
+            interrupts: [],
+            isDayOff: false,
+          };
+          hasNewDays = true;
+        }
       }
-    }
-    
-    if (hasNewDays) {
-      setRecords(newRecords);
-    }
-  }, [daysInMonth, monthStart]); // Removed records dependency to prevent infinite loop
+
+      return hasNewDays ? newRecords : prev;
+    });
+  }, [daysInMonth, monthStart, setRecords]);
 
   const calculateWorkedHours = useCallback((startTime: string, endTime?: string, pausedTime: number = 0): number => {
     if (!startTime) return 0;
