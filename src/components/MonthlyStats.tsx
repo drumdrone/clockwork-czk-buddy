@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Download, Calendar, Clock, CreditCard, TrendingUp, Target, Edit2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend } from 'date-fns';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts';
 
 interface DayRecord {
   date: string;
@@ -95,30 +95,41 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   };
 
   const dailyStats = getDailyStats();
-  // Group into 4 calendar weeks by day-of-month ranges: 1-7, 8-14, 15-21, 22-31
-  const weeklyBuckets = Array.from({ length: 4 }, (_, i) => ({
-    week: `Week ${i + 1}`,
-    hours: 0,
-    earnings: 0,
-  }));
-  dailyStats.forEach((record) => {
-    const dayOfMonth = parseDateLocal(record.date).getDate();
-    const idx = Math.min(3, Math.floor((dayOfMonth - 1) / 7));
-    const h = Number(record.workedHours || 0);
-    weeklyBuckets[idx].hours += h;
-    weeklyBuckets[idx].earnings += h * hourlyRate;
+  // Build daily earnings data and append weekly total bars (1-7, 8-14, 15-21, 22-31)
+  const start = startOfMonth(selectedMonth);
+  const end = endOfMonth(selectedMonth);
+  const days = eachDayOfInterval({ start, end });
+
+  const dayEntries = days.map((d) => {
+    const key = format(d, 'yyyy-MM-dd');
+    const worked = Number(records[key]?.workedHours || 0);
+    const earnings = Math.round(worked * hourlyRate);
+    return {
+      date: key,
+      label: format(d, 'd'),
+      earnings,
+      isWeekTotal: false,
+      weekIndex: Math.min(3, Math.floor((d.getDate() - 1) / 7)),
+    };
   });
-  const chartData = weeklyBuckets.map((w) => ({
-    week: w.week,
-    hours: Number(w.hours.toFixed(2)),
-    earnings: Math.round(w.earnings),
-  }));
-  const weeklyTotals = weeklyBuckets;
+
+  const weeklySums = [0, 0, 0, 0];
+  dayEntries.forEach((e) => {
+    weeklySums[e.weekIndex] += e.earnings;
+  });
+
+  const chartData = [] as Array<{ label: string; earnings: number; isWeekTotal?: boolean }>;
+  dayEntries.forEach((e, i) => {
+    chartData.push({ label: e.label, earnings: e.earnings });
+    const dayNum = parseInt(e.label, 10);
+    const isBoundary = [7, 14, 21].includes(dayNum) || i === dayEntries.length - 1;
+    if (isBoundary) {
+      const wIdx = Math.min(3, Math.floor((dayNum - 1) / 7));
+      chartData.push({ label: `W${wIdx + 1}`, earnings: weeklySums[wIdx], isWeekTotal: true });
+    }
+  });
+
   const chartConfig = {
-    hours: {
-      label: 'Hours',
-      color: 'hsl(var(--primary))',
-    },
     earnings: {
       label: 'Earnings',
       color: 'hsl(var(--accent))',
@@ -280,9 +291,9 @@ const remainingDays = eachDayOfInterval({
             </CardContent>
           </Card>
 
-          {/* Weekly Breakdown - Grouped Bar Chart */}
+          {/* Daily Earnings with weekly total bars */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Weekly Breakdown</h3>
+            <h3 className="text-lg font-semibold">Daily Earnings</h3>
             {dailyStats.length === 0 ? (
               <Card className="border-muted">
                 <CardContent className="pt-6 text-center text-muted-foreground">
@@ -290,40 +301,23 @@ const remainingDays = eachDayOfInterval({
                 </CardContent>
               </Card>
             ) : (
-              <>
-                <Card className="border-primary/10">
-                  <CardContent className="pt-6">
-                    <ChartContainer config={chartConfig} className="h-72 w-full">
-                      <BarChart data={chartData} margin={{ left: 12, right: 12 }}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                        <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} />
-                        <YAxis yAxisId="left" tickLine={false} axisLine={false} tickMargin={8} />
-                        <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tickMargin={8} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar yAxisId="left" dataKey="hours" fill="var(--color-hours)" radius={[6, 6, 0, 0]} />
-                        <Bar yAxisId="right" dataKey="earnings" fill="var(--color-earnings)" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-
-                {/* Weekly totals */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {weeklyTotals.map((w) => (
-                    <Card key={w.week} className="border-muted/50">
-                      <CardContent className="pt-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-muted-foreground">{w.week}</p>
-                            <p className="text-lg font-semibold">{formatHours(w.hours)}</p>
-                          </div>
-                          <div className="text-primary font-semibold">{formatCurrency(w.earnings)}</div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </>
+              <Card className="border-primary/10">
+                <CardContent className="pt-6">
+                  <ChartContainer config={chartConfig} className="h-72 w-full">
+                    <BarChart data={chartData} margin={{ left: 12, right: 12 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="earnings" radius={[6, 6, 0, 0]}>
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.isWeekTotal ? 'hsl(var(--primary))' : 'var(--color-earnings)'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
             )}
           </div>
         </CardContent>
