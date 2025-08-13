@@ -53,8 +53,22 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      console.log('Starting OTP process for email:', email);
       cleanupAuthState();
 
+      // First try to sign up the user (in case they don't exist)
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: Math.random().toString(36), // Random password since we're using OTP
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        }
+      });
+
+      console.log('SignUp attempt result:', { signUpError });
+      
+      // If user already exists, signUp will fail but that's ok
+      // Now send OTP regardless
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -62,7 +76,12 @@ const Auth = () => {
         }
       });
 
-      if (error) throw error;
+      console.log('OTP response:', { error });
+
+      if (error) {
+        console.error('OTP error details:', error);
+        throw error;
+      }
 
       setStep('code');
       toast({
@@ -70,6 +89,7 @@ const Auth = () => {
         description: "Check your email for the verification code!",
       });
     } catch (error: any) {
+      console.error('Failed to send OTP:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to send verification code",
@@ -85,15 +105,23 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      console.log('Verifying OTP code:', verificationCode, 'for email:', email);
+      
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: verificationCode,
         type: 'email'
       });
 
-      if (error) throw error;
+      console.log('Verify OTP response:', { data, error });
+
+      if (error) {
+        console.error('Verify OTP error details:', error);
+        throw error;
+      }
 
       if (data.user) {
+        console.log('User authenticated successfully:', data.user.id);
         toast({
           title: "Success",
           description: "Signed in successfully!",
@@ -101,6 +129,7 @@ const Auth = () => {
         window.location.href = '/';
       }
     } catch (error: any) {
+      console.error('Failed to verify OTP:', error);
       toast({
         title: "Error",
         description: error.message || "Invalid verification code",
