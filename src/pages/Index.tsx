@@ -62,35 +62,152 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load data from localStorage (for backward compatibility)
+  // Load data from Supabase and migrate from localStorage if needed
   useEffect(() => {
     if (!user) return;
 
-    const savedData = localStorage.getItem('workHoursData');
-    const savedRate = localStorage.getItem('hourlyRate');
-    
-    if (savedData) {
+    const loadUserData = async () => {
       try {
-        const parsed = JSON.parse(savedData);
-        if (parsed && typeof parsed === 'object') {
-          setRecords(parsed);
-        } else {
-          localStorage.removeItem('workHoursData');
+        // Load user settings from Supabase
+        const { data: settings, error: settingsError } = await supabase
+          .from('user_settings')
+          .select('*')
+          .single();
+
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          throw settingsError;
         }
-      } catch (e) {
-        console.error('Failed to parse workHoursData from localStorage', e);
-        localStorage.removeItem('workHoursData');
+
+        if (settings) {
+          setHourlyRate(settings.hourly_rate || 300);
+        } else {
+          // Create initial user settings
+          const { error } = await supabase
+            .from('user_settings')
+            .insert([{
+              user_id: user.id,
+              hourly_rate: 300,
+              daily_hours_goal: 8
+            }]);
+          
+          if (error) console.error('Error creating user settings:', error);
+        }
+
+        // Load work records from Supabase
+        const { data: workRecords, error: recordsError } = await supabase
+          .from('work_records')
+          .select('*')
+          .order('date', { ascending: false });
+
+        if (recordsError) throw recordsError;
+
+        // Convert Supabase records to legacy format for compatibility
+        const legacyRecords: { [key: string]: DayRecord } = {};
+        (workRecords || []).forEach(record => {
+          legacyRecords[record.date] = {
+            date: record.date,
+            startTime: record.start_time,
+            endTime: record.end_time,
+            estimatedEndTime: record.estimated_end_time || '',
+            isWorking: record.is_working || false,
+            workedHours: record.worked_hours || 0,
+            earnings: record.earnings || 0,
+            isPaused: record.is_paused || false,
+            pausedTime: record.paused_time || 0,
+            interrupts: Array.isArray(record.interrupts) ? 
+              record.interrupts
+                .filter((item: any) => item && typeof item === 'object' && item.start && item.end && item.type)
+                .map((item: any) => ({
+                  start: item.start,
+                  end: item.end,
+                  type: item.type
+                } as TimeInterval)) : [],
+            isDayOff: record.is_day_off || false,
+          };
+        });
+        setRecords(legacyRecords);
+
+        // Migrate localStorage data if Supabase is empty
+        if (!workRecords || workRecords.length === 0) {
+          const savedData = localStorage.getItem('workHoursData');
+          if (savedData) {
+            try {
+              const parsed = JSON.parse(savedData);
+              if (parsed && typeof parsed === 'object') {
+                // Convert legacy records to Supabase format and insert
+                const recordsToInsert = Object.values(parsed).map((record: any) => ({
+                  user_id: user.id,
+                  date: record.date,
+                  start_time: record.startTime,
+                  end_time: record.endTime,
+                  estimated_end_time: record.estimatedEndTime || null,
+                  is_working: record.isWorking || false,
+                  worked_hours: record.workedHours || 0,
+                  earnings: record.earnings || 0,
+                  is_paused: record.isPaused || false,
+                  paused_time: record.pausedTime || 0,
+                  interrupts: record.interrupts || [],
+                  is_day_off: record.isDayOff || false,
+                }));
+
+                if (recordsToInsert.length > 0) {
+                  await supabase.from('work_records').insert(recordsToInsert);
+                  setRecords(parsed);
+                }
+              }
+              localStorage.removeItem('workHoursData');
+            } catch (e) {
+              console.error('Failed to migrate localStorage data:', e);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        // Fallback to localStorage
+        const savedData = localStorage.getItem('workHoursData');
+        const savedRate = localStorage.getItem('hourlyRate');
+        
+        if (savedData) {
+          try {
+            const parsed = JSON.parse(savedData);
+            if (parsed && typeof parsed === 'object') {
+              setRecords(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to parse localStorage data:', e);
+          }
+        }
+        if (savedRate && !isNaN(Number(savedRate))) {
+          setHourlyRate(Number(savedRate));
+        }
       }
-    }
-    if (savedRate && !isNaN(Number(savedRate))) {
-      setHourlyRate(Number(savedRate));
-    }
+    };
+
+    loadUserData();
   }, [user]);
 
-  // Save hourlyRate to localStorage when it changes
+  // Save hourlyRate to Supabase when it changes
   useEffect(() => {
-    localStorage.setItem('hourlyRate', hourlyRate.toString());
-  }, [hourlyRate]);
+    if (!user || !hourlyRate) return;
+
+    const saveHourlyRate = async () => {
+      try {
+        await supabase
+          .from('user_settings')
+          .upsert({
+            user_id: user.id,
+            hourly_rate: hourlyRate,
+            daily_hours_goal: 8
+          });
+      } catch (error) {
+        console.error('Error saving hourly rate:', error);
+        // Fallback to localStorage
+        localStorage.setItem('hourlyRate', hourlyRate.toString());
+      }
+    };
+
+    saveHourlyRate();
+  }, [hourlyRate, user]);
 
   const handleSignOut = async () => {
     try {
