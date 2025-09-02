@@ -36,6 +36,7 @@ interface UserSettings {
   sync_interval_minutes?: number;
   auto_sync_enabled?: boolean;
   last_sync_at?: string;
+  export_url?: string;
 }
 
 const DataManager = () => {
@@ -50,6 +51,8 @@ const DataManager = () => {
   const [syncUrl, setSyncUrl] = useState('');
   const [syncInterval, setSyncInterval] = useState(15);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [exportUrl, setExportUrl] = useState('');
+  const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -86,12 +89,14 @@ const DataManager = () => {
           csv_sync_url: settings.csv_sync_url || '',
           sync_interval_minutes: settings.sync_interval_minutes || 15,
           auto_sync_enabled: settings.auto_sync_enabled || false,
-          last_sync_at: settings.last_sync_at
+          last_sync_at: settings.last_sync_at,
+          export_url: settings.export_url || ''
         };
         setUserSettings(updatedSettings);
         setSyncUrl(updatedSettings.csv_sync_url || '');
         setSyncInterval(updatedSettings.sync_interval_minutes || 15);
         setAutoSyncEnabled(updatedSettings.auto_sync_enabled || false);
+        setExportUrl(updatedSettings.export_url || '');
       }
     } catch (error: any) {
       toast({
@@ -108,12 +113,12 @@ const DataManager = () => {
     loadData();
   }, [loadData]);
 
-  // Auto-sync effect
+  // Auto-sync effect (IMPORT ONLY - no auto-export)
   useEffect(() => {
     if (autoSyncEnabled && syncUrl && syncInterval > 0) {
       const intervalMs = syncInterval * 60 * 1000; // Convert minutes to milliseconds
       syncIntervalRef.current = setInterval(() => {
-        console.log('Auto-syncing data...');
+        console.log('Auto-importing data from CSV...');
         syncFromCSV();
       }, intervalMs);
 
@@ -475,7 +480,8 @@ const DataManager = () => {
       ...userSettings,
       csv_sync_url: syncUrl,
       sync_interval_minutes: syncInterval,
-      auto_sync_enabled: autoSyncEnabled
+      auto_sync_enabled: autoSyncEnabled,
+      export_url: exportUrl
     };
 
     await updateUserSettings(updatedSettings);
@@ -485,6 +491,73 @@ const DataManager = () => {
       title: "Success",
       description: "Sync settings saved",
     });
+  };
+
+  // Export to Google Sheets
+  const exportToSheets = async () => {
+    if (!exportUrl) {
+      toast({
+        title: "Error",
+        description: "No export URL configured. Please set up your Google Apps Script URL in sync settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExporting(true);
+
+    try {
+      // Prepare data in the format expected by the edge function
+      const workHoursData: any = {};
+      records.forEach(record => {
+        workHoursData[record.date] = {
+          startTime: record.start_time,
+          endTime: record.end_time,
+          estimatedEndTime: record.estimated_end_time,
+          workedHours: record.worked_hours,
+          earnings: record.earnings,
+          isDayOff: record.is_day_off,
+          interrupts: record.interrupts || []
+        };
+      });
+
+      const exportData = {
+        workHoursData,
+        hourlyRate: userSettings.hourly_rate,
+        dailyHoursGoal: userSettings.daily_hours_goal,
+        monthlyGoal: userSettings.daily_hours_goal * 22 * userSettings.hourly_rate // Approximate monthly goal
+      };
+
+      console.log('Exporting data to Google Sheets...');
+
+      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+        body: {
+          action: 'backup',
+          data: exportData,
+          webAppUrl: exportUrl
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Success",
+          description: "Data exported to Google Sheets successfully!",
+        });
+      } else {
+        throw new Error(data?.error || 'Failed to export data');
+      }
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Error",
+        description: error.message || "Failed to export data to Google Sheets",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) {
@@ -536,7 +609,16 @@ const DataManager = () => {
                 disabled={syncing || !syncUrl}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Syncing...' : 'Sync CSV'}
+                {syncing ? 'Importing...' : 'Import from CSV'}
+              </Button>
+              <Button 
+                onClick={exportToSheets} 
+                variant="outline" 
+                size="sm"
+                disabled={exporting || !exportUrl}
+              >
+                <Upload className={`w-4 h-4 mr-2 ${exporting ? 'animate-spin' : ''}`} />
+                {exporting ? 'Exporting...' : 'Export to Sheets'}
               </Button>
               <Button 
                 onClick={() => setShowSyncSettings(true)} 
@@ -556,18 +638,18 @@ const DataManager = () => {
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <Badge variant={autoSyncEnabled ? "default" : "outline"}>
-                    {autoSyncEnabled ? 'Auto-sync ON' : 'Auto-sync OFF'}
+                    {autoSyncEnabled ? 'Auto-import ON' : 'Auto-import OFF'}
                   </Badge>
                   {autoSyncEnabled && (
                     <span className="text-muted-foreground">
-                      Every {syncInterval} minutes
+                      Importing every {syncInterval} minutes
                     </span>
                   )}
                 </div>
                 {userSettings.last_sync_at && (
                   <div className="flex items-center gap-1 text-muted-foreground">
                     <Clock className="w-3 h-3" />
-                    Last sync: {formatDistanceToNow(new Date(userSettings.last_sync_at), { addSuffix: true })}
+                    Last import: {formatDistanceToNow(new Date(userSettings.last_sync_at), { addSuffix: true })}
                   </div>
                 )}
               </div>
@@ -577,10 +659,10 @@ const DataManager = () => {
           {/* Sync Settings Modal */}
           {showSyncSettings && (
             <div className="mb-4 p-4 border rounded-lg bg-card">
-              <h3 className="text-lg font-semibold mb-3">CSV Sync Settings</h3>
+              <h3 className="text-lg font-semibold mb-3">Google Sheets Sync Settings</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium">Google Sheets CSV URL</label>
+                  <label className="text-sm font-medium">Import CSV URL (Google Sheets published CSV)</label>
                   <Input
                     placeholder="https://docs.google.com/spreadsheets/d/.../pub?gid=0&single=true&output=csv"
                     value={syncUrl}
@@ -588,9 +670,23 @@ const DataManager = () => {
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Publish your Google Sheet as CSV and paste the URL here
+                    Publish your Google Sheet as CSV and paste the URL here for importing data
                   </p>
                 </div>
+                
+                <div>
+                  <label className="text-sm font-medium">Export URL (Google Apps Script Web App)</label>
+                  <Input
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    value={exportUrl}
+                    onChange={(e) => setExportUrl(e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Create a Google Apps Script Web App URL for exporting data to Google Sheets
+                  </p>
+                </div>
+
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -599,12 +695,12 @@ const DataManager = () => {
                     onChange={(e) => setAutoSyncEnabled(e.target.checked)}
                   />
                   <label htmlFor="autoSync" className="text-sm font-medium">
-                    Enable auto-sync
+                    Enable auto-import (import only, no auto-export)
                   </label>
                 </div>
                 {autoSyncEnabled && (
                   <div>
-                    <label className="text-sm font-medium">Sync interval (minutes)</label>
+                    <label className="text-sm font-medium">Import interval (minutes)</label>
                     <Input
                       type="number"
                       min="1"
