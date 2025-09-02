@@ -5,10 +5,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Download, Calendar, Clock, CreditCard, TrendingUp, Target, Edit2 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Download, Calendar, Clock, CreditCard, TrendingUp, Target, Edit2, Upload, CalendarIcon } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, startOfYear } from 'date-fns';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 
 interface DayRecord {
   date: string;
@@ -35,6 +40,10 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
     return saved ? parseFloat(saved) : 50000;
   });
   const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [currentViewMonth, setCurrentViewMonth] = useState(selectedMonth);
+  const [exportUrl, setExportUrl] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const { toast } = useToast();
 
   // Parse YYYY-MM-DD as local Date to avoid timezone shifts
   const parseDateLocal = (s: string) => {
@@ -45,6 +54,34 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   useEffect(() => {
     localStorage.setItem('monthlyGoal', monthlyGoal.toString());
   }, [monthlyGoal]);
+
+  // Load user settings for export functionality
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('export_url')
+          .single();
+
+        if (settings?.export_url) {
+          setExportUrl(settings.export_url);
+        }
+      } catch (error) {
+        console.error('Failed to load export URL:', error);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  // Update currentViewMonth when selectedMonth prop changes
+  useEffect(() => {
+    setCurrentViewMonth(selectedMonth);
+  }, [selectedMonth]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
@@ -64,8 +101,8 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   const getDailyStats = () => {
     const currentMonthRecords = Object.values(records).filter(record => {
       const recordDate = parseDateLocal(record.date);
-      return recordDate.getMonth() === selectedMonth.getMonth() && 
-             recordDate.getFullYear() === selectedMonth.getFullYear();
+      return recordDate.getMonth() === currentViewMonth.getMonth() && 
+             recordDate.getFullYear() === currentViewMonth.getFullYear();
     });
 
     return currentMonthRecords
@@ -73,7 +110,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
       .sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
   };
 
-  const exportToGoogleSheets = () => {
+  const exportToCSV = () => {
     const dailyStats = getDailyStats();
     const csvContent = [
       ['Date', 'Day', 'Hours', 'Earnings (CZK)', 'Start Time', 'End Time'],
@@ -90,14 +127,78 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `daily-work-hours-${format(new Date(), 'yyyy-MM')}.csv`;
+    link.download = `daily-work-hours-${format(currentViewMonth, 'yyyy-MM')}.csv`;
     link.click();
+  };
+
+  const exportToGoogleSheets = async () => {
+    if (!exportUrl) {
+      toast({
+        title: "Export URL Required",
+        description: "Please configure your Google Apps Script URL in Data Manager settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExporting(true);
+    try {
+      // Convert current month's records to the format expected by the edge function
+      const dailyStats = getDailyStats();
+      const workHoursData: { [key: string]: any } = {};
+      
+      dailyStats.forEach(record => {
+        workHoursData[record.date] = {
+          startTime: record.startTime,
+          endTime: record.endTime,
+          estimatedEndTime: record.estimatedEndTime,
+          workedHours: record.workedHours,
+          earnings: record.earnings,
+          isDayOff: record.isDayOff,
+          pausedTime: record.pausedTime,
+          interrupts: []
+        };
+      });
+
+      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+        body: {
+          action: 'backup',
+          exportUrl: exportUrl,
+          data: {
+            hourlyRate: hourlyRate,
+            dailyGoal: 8,
+            monthlyGoal: monthlyGoal,
+            workHoursData: workHoursData
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Export Successful",
+          description: `Exported ${dailyStats.length} records to Google Sheets`,
+        });
+      } else {
+        throw new Error(data?.error || 'Export failed');
+      }
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: error.message || "Failed to export data to Google Sheets",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const dailyStats = getDailyStats();
   // Build daily earnings data and append weekly total bars (1-7, 8-14, 15-21, 22-31)
-  const start = startOfMonth(selectedMonth);
-  const end = endOfMonth(selectedMonth);
+  const start = startOfMonth(currentViewMonth);
+  const end = endOfMonth(currentViewMonth);
   const days = eachDayOfInterval({ start, end });
 
   const dayEntries = days.map((d) => {
@@ -161,14 +262,49 @@ const remainingDays = eachDayOfInterval({
       <Card className="border-primary/20 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Calendar className="h-6 w-6 text-primary" />
-              Daily Work Summary - {format(selectedMonth, 'MMMM yyyy')}
-            </CardTitle>
-            <Button onClick={exportToGoogleSheets} className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
+            <div className="flex items-center gap-4">
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <Calendar className="h-6 w-6 text-primary" />
+                Daily Work Summary
+              </CardTitle>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[240px] justify-start text-left font-normal",
+                      "hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(currentViewMonth, "MMMM yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={currentViewMonth}
+                    onSelect={(date) => date && setCurrentViewMonth(startOfMonth(date))}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={exportToCSV} variant="outline" className="flex items-center gap-2">
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button 
+                onClick={exportToGoogleSheets} 
+                disabled={exporting || !exportUrl}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {exporting ? 'Exporting...' : 'Export to Sheets'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-6">
