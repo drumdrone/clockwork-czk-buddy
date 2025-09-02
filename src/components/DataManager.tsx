@@ -90,7 +90,7 @@ const DataManager = () => {
           sync_interval_minutes: settings.sync_interval_minutes || 15,
           auto_sync_enabled: settings.auto_sync_enabled || false,
           last_sync_at: settings.last_sync_at,
-          export_url: (settings as any).export_url || ''
+          export_url: settings.export_url || ''
         };
         setUserSettings(updatedSettings);
         setSyncUrl(updatedSettings.csv_sync_url || '');
