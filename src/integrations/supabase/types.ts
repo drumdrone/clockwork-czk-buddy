@@ -631,6 +631,7 @@ export type Database = {
           created_at: string
           csv_sync_url: string | null
           daily_hours_goal: number | null
+          export_url: string | null
           google_sheet_id: string | null
           hourly_rate: number | null
           id: string
@@ -644,6 +645,7 @@ export type Database = {
           created_at?: string
           csv_sync_url?: string | null
           daily_hours_goal?: number | null
+          export_url?: string | null
           google_sheet_id?: string | null
           hourly_rate?: number | null
           id?: string
@@ -657,6 +659,7 @@ export type Database = {
           created_at?: string
           csv_sync_url?: string | null
           daily_hours_goal?: number | null
+          export_url?: string | null
           google_sheet_id?: string | null
           hourly_rate?: number | null
           id?: string
