@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Download, Upload, Save, Undo2, Copy } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Save, Undo2, Copy, RefreshCw, Settings, Clock } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, formatDistanceToNow } from 'date-fns';
 
 interface WorkRecord {
   id: string;
@@ -28,8 +28,14 @@ interface WorkRecord {
 }
 
 interface UserSettings {
+  id?: string;
+  user_id?: string;
   hourly_rate: number;
   daily_hours_goal: number;
+  csv_sync_url?: string;
+  sync_interval_minutes?: number;
+  auto_sync_enabled?: boolean;
+  last_sync_at?: string;
 }
 
 const DataManager = () => {
@@ -39,7 +45,13 @@ const DataManager = () => {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [syncUrl, setSyncUrl] = useState('');
+  const [syncInterval, setSyncInterval] = useState(15);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const { toast } = useToast();
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load data from Supabase
   const loadData = useCallback(async () => {
@@ -68,10 +80,18 @@ const DataManager = () => {
         interrupts: Array.isArray(record.interrupts) ? record.interrupts : []
       })));
       if (settings) {
-        setUserSettings({
+        const updatedSettings = {
           hourly_rate: settings.hourly_rate || 300,
-          daily_hours_goal: settings.daily_hours_goal || 8
-        });
+          daily_hours_goal: settings.daily_hours_goal || 8,
+          csv_sync_url: settings.csv_sync_url || '',
+          sync_interval_minutes: settings.sync_interval_minutes || 15,
+          auto_sync_enabled: settings.auto_sync_enabled || false,
+          last_sync_at: settings.last_sync_at
+        };
+        setUserSettings(updatedSettings);
+        setSyncUrl(updatedSettings.csv_sync_url || '');
+        setSyncInterval(updatedSettings.sync_interval_minutes || 15);
+        setAutoSyncEnabled(updatedSettings.auto_sync_enabled || false);
       }
     } catch (error: any) {
       toast({
@@ -87,6 +107,37 @@ const DataManager = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Auto-sync effect
+  useEffect(() => {
+    if (autoSyncEnabled && syncUrl && syncInterval > 0) {
+      const intervalMs = syncInterval * 60 * 1000; // Convert minutes to milliseconds
+      syncIntervalRef.current = setInterval(() => {
+        console.log('Auto-syncing data...');
+        syncFromCSV();
+      }, intervalMs);
+
+      return () => {
+        if (syncIntervalRef.current) {
+          clearInterval(syncIntervalRef.current);
+        }
+      };
+    } else {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+    }
+  }, [autoSyncEnabled, syncUrl, syncInterval]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Save record to database
   const saveRecord = async (record: WorkRecord) => {
@@ -310,6 +361,132 @@ const DataManager = () => {
     reader.readAsText(file);
   };
 
+  // Sync from CSV URL
+  const syncFromCSV = async () => {
+    if (!syncUrl) {
+      toast({
+        title: "Error",
+        description: "No sync URL configured",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSyncing(true);
+    console.log('Sending restore request with URL:', syncUrl);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+        body: {
+          action: 'restore',
+          csvUrl: syncUrl
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        const { workHoursData, hourlyRate, dailyHoursGoal } = data.data;
+        
+        // Update settings
+        await updateUserSettings({
+          ...userSettings,
+          hourly_rate: hourlyRate,
+          daily_hours_goal: dailyHoursGoal,
+          last_sync_at: new Date().toISOString()
+        });
+
+        // Convert and import work records
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && workHoursData) {
+          const newRecords = Object.entries(workHoursData).map(([date, record]: [string, any]) => ({
+            user_id: user.id,
+            date: date,
+            start_time: record.startTime || null,
+            end_time: record.endTime || null,
+            estimated_end_time: record.estimatedEndTime || null,
+            worked_hours: record.workedHours || 0,
+            earnings: record.earnings || 0,
+            is_day_off: record.isDayOff || false,
+            paused_time: record.pausedTime || 0,
+            is_working: false,
+            is_paused: false,
+            interrupts: record.interrupts || [],
+          }));
+
+          if (newRecords.length > 0) {
+            const { error: importError } = await supabase
+              .from('work_records')
+              .upsert(newRecords, { 
+                onConflict: 'user_id,date',
+                ignoreDuplicates: false 
+              });
+
+            if (importError) throw importError;
+            
+            await loadData();
+            toast({
+              title: "Success",
+              description: `Synced ${newRecords.length} records from CSV`,
+            });
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      toast({
+        title: "Sync Error",
+        description: error.message || "Failed to sync data from CSV",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Update user settings
+  const updateUserSettings = async (settings: UserSettings) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          ...settings
+        });
+
+      if (error) throw error;
+
+      setUserSettings(settings);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to update settings: " + error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Save sync settings
+  const saveSyncSettings = async () => {
+    const updatedSettings = {
+      ...userSettings,
+      csv_sync_url: syncUrl,
+      sync_interval_minutes: syncInterval,
+      auto_sync_enabled: autoSyncEnabled
+    };
+
+    await updateUserSettings(updatedSettings);
+    setShowSyncSettings(false);
+    
+    toast({
+      title: "Success",
+      description: "Sync settings saved",
+    });
+  };
+
   if (loading) {
     return <div className="p-6">Loading...</div>;
   }
@@ -352,10 +529,103 @@ const DataManager = () => {
                   className="hidden"
                 />
               </label>
+              <Button 
+                onClick={syncFromCSV} 
+                variant="outline" 
+                size="sm"
+                disabled={syncing || !syncUrl}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync CSV'}
+              </Button>
+              <Button 
+                onClick={() => setShowSyncSettings(true)} 
+                variant="outline" 
+                size="sm"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Sync Settings
+              </Button>
             </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Sync Status */}
+          {(autoSyncEnabled || userSettings.last_sync_at) && (
+            <div className="mb-4 p-3 bg-muted rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant={autoSyncEnabled ? "default" : "outline"}>
+                    {autoSyncEnabled ? 'Auto-sync ON' : 'Auto-sync OFF'}
+                  </Badge>
+                  {autoSyncEnabled && (
+                    <span className="text-muted-foreground">
+                      Every {syncInterval} minutes
+                    </span>
+                  )}
+                </div>
+                {userSettings.last_sync_at && (
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Clock className="w-3 h-3" />
+                    Last sync: {formatDistanceToNow(new Date(userSettings.last_sync_at), { addSuffix: true })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Sync Settings Modal */}
+          {showSyncSettings && (
+            <div className="mb-4 p-4 border rounded-lg bg-card">
+              <h3 className="text-lg font-semibold mb-3">CSV Sync Settings</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Google Sheets CSV URL</label>
+                  <Input
+                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?gid=0&single=true&output=csv"
+                    value={syncUrl}
+                    onChange={(e) => setSyncUrl(e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Publish your Google Sheet as CSV and paste the URL here
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="autoSync"
+                    checked={autoSyncEnabled}
+                    onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+                  />
+                  <label htmlFor="autoSync" className="text-sm font-medium">
+                    Enable auto-sync
+                  </label>
+                </div>
+                {autoSyncEnabled && (
+                  <div>
+                    <label className="text-sm font-medium">Sync interval (minutes)</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="1440"
+                      value={syncInterval}
+                      onChange={(e) => setSyncInterval(parseInt(e.target.value) || 15)}
+                      className="mt-1 w-32"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button onClick={saveSyncSettings} size="sm">
+                    Save Settings
+                  </Button>
+                  <Button onClick={() => setShowSyncSettings(false)} variant="outline" size="sm">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
