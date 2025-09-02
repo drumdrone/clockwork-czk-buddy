@@ -35,14 +35,12 @@ interface MonthlyStatsProps {
 }
 
 const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, selectedMonth }) => {
-  const [monthlyGoal, setMonthlyGoal] = useState<number>(() => {
-    const saved = localStorage.getItem('monthlyGoal');
-    return saved ? parseFloat(saved) : 50000;
-  });
+  const [monthlyGoal, setMonthlyGoal] = useState<number>(50000);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [currentViewMonth, setCurrentViewMonth] = useState(selectedMonth);
   const [exportUrl, setExportUrl] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [loadingGoal, setLoadingGoal] = useState(false);
   const { toast } = useToast();
 
   // Parse YYYY-MM-DD as local Date to avoid timezone shifts
@@ -51,9 +49,69 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
     return new Date(y, (m || 1) - 1, d || 1);
   };
 
+  // Load monthly goal from database
+  const loadMonthlyGoal = async (month: Date) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: goalData } = await supabase
+        .from('monthly_goals')
+        .select('goal_amount')
+        .eq('month', month.getMonth() + 1)
+        .eq('year', month.getFullYear())
+        .single();
+
+      if (goalData) {
+        setMonthlyGoal(Number(goalData.goal_amount));
+      } else {
+        // No goal set for this month, use default
+        setMonthlyGoal(50000);
+      }
+    } catch (error) {
+      console.error('Failed to load monthly goal:', error);
+      setMonthlyGoal(50000); // Fallback to default
+    }
+  };
+
+  // Save monthly goal to database
+  const saveMonthlyGoal = async (goal: number, month: Date) => {
+    try {
+      setLoadingGoal(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('monthly_goals')
+        .upsert({
+          user_id: user.id,
+          month: month.getMonth() + 1,
+          year: month.getFullYear(),
+          goal_amount: goal
+        });
+
+      if (error) throw error;
+      
+      toast({
+        title: "Goal Updated",
+        description: `Monthly goal for ${format(month, 'MMMM yyyy')} set to ${formatCurrency(goal)}`,
+      });
+    } catch (error: any) {
+      console.error('Failed to save monthly goal:', error);
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save monthly goal",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingGoal(false);
+    }
+  };
+
+  // Load goal when component mounts or month changes
   useEffect(() => {
-    localStorage.setItem('monthlyGoal', monthlyGoal.toString());
-  }, [monthlyGoal]);
+    loadMonthlyGoal(currentViewMonth);
+  }, [currentViewMonth]);
 
   // Load user settings for export functionality
   useEffect(() => {
@@ -243,18 +301,25 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   const remainingEarnings = Math.max(0, monthlyGoal - totalEarnings);
   const remainingHours = remainingEarnings / hourlyRate;
   
-// Calculate working days from today to end of month (Monday-Friday only)
-const today = new Date();
-const endOfCurrentMonth = endOfMonth(today);
-const remainingDays = eachDayOfInterval({
-  start: today,
-  end: endOfCurrentMonth
-}).filter(day => !isWeekend(day))
-  .filter(day => {
-    const key = format(day, 'yyyy-MM-dd');
-    return !(records[key]?.isDayOff);
-  });
+  // Calculate working days from today to end of month for current view month (Monday-Friday only)
+  const today = new Date();
+  const endOfViewMonth = endOfMonth(currentViewMonth);
   
+  // If viewing current month, calculate from today; otherwise, calculate from start of viewed month
+  const startDate = currentViewMonth.getMonth() === today.getMonth() && 
+                    currentViewMonth.getFullYear() === today.getFullYear() 
+                    ? today 
+                    : startOfMonth(currentViewMonth);
+  
+  const remainingDays = eachDayOfInterval({
+    start: startDate,
+    end: endOfViewMonth
+  }).filter(day => !isWeekend(day))
+    .filter(day => {
+      const key = format(day, 'yyyy-MM-dd');
+      return !(records[key]?.isDayOff);
+    });
+    
   const hoursPerWorkingDay = remainingDays.length > 0 ? remainingHours / remainingDays.length : 0;
 
   return (
@@ -374,14 +439,23 @@ const remainingDays = eachDayOfInterval({
                         type="number"
                         value={monthlyGoal}
                         onChange={(e) => setMonthlyGoal(Number(e.target.value))}
-                        onBlur={() => setIsEditingGoal(false)}
-                        onKeyDown={(e) => e.key === 'Enter' && setIsEditingGoal(false)}
+                        onBlur={() => {
+                          setIsEditingGoal(false);
+                          saveMonthlyGoal(monthlyGoal, currentViewMonth);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setIsEditingGoal(false);
+                            saveMonthlyGoal(monthlyGoal, currentViewMonth);
+                          }
+                        }}
                         className="mt-1"
+                        disabled={loadingGoal}
                         autoFocus
                       />
                     ) : (
                       <p className="text-lg font-semibold text-orange-500 mt-1">
-                        {formatCurrency(monthlyGoal)}
+                        {loadingGoal ? 'Loading...' : formatCurrency(monthlyGoal)}
                       </p>
                     )}
                   </div>
