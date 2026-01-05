@@ -15,7 +15,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { email, password } = await req.json();
+    const { email, password, update } = await req.json();
 
     if (!email || !password) {
       return new Response(
@@ -40,6 +40,42 @@ Deno.serve(async (req: Request) => {
         },
       }
     );
+
+    if (update) {
+      const { data: users } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = users.users.find(u => u.email === email);
+      
+      if (existingUser) {
+        const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          { password }
+        );
+
+        if (error) {
+          return new Response(
+            JSON.stringify({ error: error.message }),
+            {
+              status: 400,
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, user: data.user, updated: true }),
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
+    }
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
