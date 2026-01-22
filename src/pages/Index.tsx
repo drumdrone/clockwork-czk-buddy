@@ -41,6 +41,16 @@ const Index = () => {
   
   // Initialize authentication
   useEffect(() => {
+    // Check if Supabase is configured
+    const isSupabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!isSupabaseConfigured) {
+      // Skip authentication if Supabase is not configured
+      setLoading(false);
+      setUser({ id: 'local-user' } as any); // Mock user for local-only mode
+      return;
+    }
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -144,15 +154,17 @@ const Index = () => {
                   Data Manager
                 </TabsTrigger>
               </TabsList>
-              <Button
-                onClick={handleSignOut}
-                variant="outline"
-                size="sm"
-                className="ml-4"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
+              {import.meta.env.VITE_SUPABASE_URL && (
+                <Button
+                  onClick={handleSignOut}
+                  variant="outline"
+                  size="sm"
+                  className="ml-4"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </Button>
+              )}
             </div>
           </div>
         </div>
