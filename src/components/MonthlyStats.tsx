@@ -49,92 +49,37 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
     return new Date(y, (m || 1) - 1, d || 1);
   };
 
-  // Load monthly goal from database
-  const loadMonthlyGoal = async (month: Date) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: goalData } = await supabase
-        .from('monthly_goals')
-        .select('goal_amount')
-        .eq('month', month.getMonth() + 1)
-        .eq('year', month.getFullYear())
-        .single();
-
-      if (goalData) {
-        setMonthlyGoal(Number(goalData.goal_amount));
-      } else {
-        // No goal set for this month, use default
-        setMonthlyGoal(50000);
-      }
-    } catch (error) {
-      console.error('Failed to load monthly goal:', error);
-      setMonthlyGoal(50000); // Fallback to default
+  // Load monthly goal from localStorage
+  const loadMonthlyGoal = (month: Date) => {
+    const key = `monthlyGoal_${month.getFullYear()}_${month.getMonth() + 1}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      setMonthlyGoal(Number(saved));
+    } else {
+      // Use default from global setting
+      const defaultGoal = localStorage.getItem('monthlyGoal');
+      setMonthlyGoal(defaultGoal ? Number(defaultGoal) : 50000);
     }
   };
 
-  // Save monthly goal to database
-  const saveMonthlyGoal = async (goal: number, month: Date) => {
-    try {
-      setLoadingGoal(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  // Save monthly goal to localStorage
+  const saveMonthlyGoal = (goal: number, month: Date) => {
+    setLoadingGoal(true);
+    const key = `monthlyGoal_${month.getFullYear()}_${month.getMonth() + 1}`;
+    localStorage.setItem(key, goal.toString());
+    localStorage.setItem('monthlyGoal', goal.toString()); // Also save as default
 
-      const { error } = await supabase
-        .from('monthly_goals')
-        .upsert({
-          user_id: user.id,
-          month: month.getMonth() + 1,
-          year: month.getFullYear(),
-          goal_amount: goal
-        });
-
-      if (error) throw error;
-      
-      toast({
-        title: "Goal Updated",
-        description: `Monthly goal for ${format(month, 'MMMM yyyy')} set to ${formatCurrency(goal)}`,
-      });
-    } catch (error: any) {
-      console.error('Failed to save monthly goal:', error);
-      toast({
-        title: "Save Failed",
-        description: error.message || "Failed to save monthly goal",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingGoal(false);
-    }
+    toast({
+      title: "Goal Updated",
+      description: `Monthly goal for ${format(month, 'MMMM yyyy')} set to ${formatCurrency(goal)}`,
+    });
+    setLoadingGoal(false);
   };
 
   // Load goal when component mounts or month changes
   useEffect(() => {
     loadMonthlyGoal(currentViewMonth);
   }, [currentViewMonth]);
-
-  // Load user settings for export functionality
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: settings } = await supabase
-          .from('user_settings')
-          .select('export_url')
-          .single();
-
-        if (settings?.export_url) {
-          setExportUrl(settings.export_url);
-        }
-      } catch (error) {
-        console.error('Failed to load export URL:', error);
-      }
-    };
-
-    loadSettings();
-  }, []);
 
   // Update currentViewMonth when selectedMonth prop changes
   useEffect(() => {
@@ -360,14 +305,6 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
               <Button onClick={exportToCSV} variant="outline" className="flex items-center gap-2">
                 <Download className="h-4 w-4" />
                 Export CSV
-              </Button>
-              <Button 
-                onClick={exportToGoogleSheets} 
-                disabled={exporting || !exportUrl}
-                className="flex items-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                {exporting ? 'Exporting...' : 'Export to Sheets'}
               </Button>
             </div>
           </div>
