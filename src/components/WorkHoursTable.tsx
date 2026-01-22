@@ -64,8 +64,19 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => {
+    const saved = localStorage.getItem('autoSyncEnabled');
+    return saved === 'true';
+  });
+  const [syncInterval, setSyncInterval] = useState(() => {
+    const saved = localStorage.getItem('syncInterval');
+    return saved ? parseInt(saved) : 30; // default 30 minutes
+  });
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentMonth = selectedMonth;
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -112,7 +123,46 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     localStorage.setItem('hourlyRate', hourlyRate.toString());
     localStorage.setItem('dailyHoursGoal', dailyHoursGoal.toString());
     localStorage.setItem('googleSheetId', googleSheetId);
-  }, [records, hourlyRate, dailyHoursGoal, googleSheetId]);
+    localStorage.setItem('autoSyncEnabled', autoSyncEnabled.toString());
+    localStorage.setItem('syncInterval', syncInterval.toString());
+  }, [records, hourlyRate, dailyHoursGoal, googleSheetId, autoSyncEnabled, syncInterval]);
+
+  // Auto-sync effect
+  useEffect(() => {
+    if (autoSyncEnabled && googleSheetId.trim() && syncInterval > 0) {
+      const intervalMs = syncInterval * 60 * 1000; // Convert minutes to milliseconds
+
+      // Initial sync
+      console.log('Auto-sync enabled, initial sync...');
+      syncFromGoogleSheets();
+
+      // Set up interval
+      syncIntervalRef.current = setInterval(() => {
+        console.log('Auto-syncing from Google Sheets...');
+        syncFromGoogleSheets();
+      }, intervalMs);
+
+      return () => {
+        if (syncIntervalRef.current) {
+          clearInterval(syncIntervalRef.current);
+        }
+      };
+    } else {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+    }
+  }, [autoSyncEnabled, googleSheetId, syncInterval]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Initialize days for current month using functional state update to avoid clobbering imported data
   useEffect(() => {
@@ -321,6 +371,78 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     fileInputRef.current?.click();
   };
 
+  const handleCSVImportClick = () => {
+    csvInputRef.current?.click();
+  };
+
+  const handleCSVImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        throw new Error('CSV file is empty or invalid');
+      }
+
+      // Parse CSV - expecting format: Date,Start Time,End Time,Estimated End,Worked Hours,Earnings,Day Off,Paused Time
+      const headers = lines[0].split(',').map(h => h.trim());
+      const importedData: { [key: string]: DayRecord } = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        if (values.length < 5 || !values[0]) continue; // Skip invalid rows
+
+        const date = values[0]; // YYYY-MM-DD format
+        const startTime = values[1] || null;
+        const endTime = values[2] || null;
+        const estimatedEndTime = values[3] || '17:00';
+        const workedHours = parseFloat(values[4]) || 0;
+        const earnings = parseFloat(values[5]) || 0;
+        const isDayOff = values[6]?.toLowerCase() === 'true';
+        const pausedTime = parseInt(values[7]) || 0;
+
+        importedData[date] = {
+          date,
+          startTime,
+          endTime,
+          estimatedEndTime,
+          isWorking: false,
+          workedHours,
+          earnings,
+          isPaused: false,
+          pausedTime,
+          interrupts: [],
+          isDayOff,
+        };
+      }
+
+      if (Object.keys(importedData).length === 0) {
+        throw new Error('No valid data found in CSV');
+      }
+
+      const processedData = recomputeImportedData(importedData, hourlyRate);
+      setRecords(processedData);
+      localStorage.setItem('workHoursData', JSON.stringify(processedData));
+
+      toast({
+        title: 'CSV imported',
+        description: `Successfully imported ${Object.keys(processedData).length} records.`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: 'Import failed',
+        description: err.message || 'Invalid CSV file.',
+        variant: 'destructive' as any,
+      });
+    } finally {
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
   const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -399,66 +521,103 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     }
   };
 
-  const restoreFromGoogleSheets = async () => {
+  const syncFromGoogleSheets = async () => {
     if (!googleSheetId.trim()) {
-      toast({ 
-        title: 'Google Sheet CSV URL required', 
+      toast({
+        title: 'Google Sheet CSV URL required',
         description: 'Please enter your published Google Sheet CSV URL first.',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
       return;
     }
 
     // Validate that it's a proper URL
     if (!googleSheetId.startsWith('http')) {
-      toast({ 
-        title: 'Invalid URL', 
+      toast({
+        title: 'Invalid URL',
         description: 'Please enter a valid Google Sheet published CSV URL starting with https://',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
       return;
     }
 
-    setIsRestoring(true);
+    setIsSyncing(true);
     try {
-      console.log('Sending restore request with URL:', googleSheetId);
-      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
-        body: {
-          action: 'restore',
-          csvUrl: googleSheetId
-        }
-      });
+      console.log('Fetching CSV from URL:', googleSheetId);
 
-      if (error) throw error;
-
-      if (data?.data) {
-        const restoredData = data.data;
-        const processedWorkHoursData = recomputeImportedData(restoredData.workHoursData, restoredData.hourlyRate);
-
-        setRecords(processedWorkHoursData);
-        setHourlyRate(restoredData.hourlyRate);
-        setDailyHoursGoal(restoredData.dailyHoursGoal);
-        
-        localStorage.setItem('workHoursData', JSON.stringify(processedWorkHoursData));
-        localStorage.setItem('hourlyRate', String(restoredData.hourlyRate));
-        localStorage.setItem('dailyHoursGoal', String(restoredData.dailyHoursGoal));
-        localStorage.setItem('monthlyGoal', String(restoredData.monthlyGoal));
-
-        toast({ 
-          title: 'Import successful', 
-          description: 'Data imported from Google Sheet successfully.' 
-        });
+      // Fetch CSV directly from URL (works without Supabase)
+      const response = await fetch(googleSheetId);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CSV: ${response.statusText}`);
       }
+
+      const csvText = await response.text();
+      const lines = csvText.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        throw new Error('CSV file is empty or invalid');
+      }
+
+      // Parse CSV - expecting format: Date,Start Time,End Time,Estimated End,Worked Hours,Earnings,Day Off,Paused Time
+      const headers = lines[0].split(',').map(h => h.trim());
+      const importedData: { [key: string]: DayRecord } = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        if (values.length < 5 || !values[0]) continue; // Skip invalid rows
+
+        const date = values[0]; // YYYY-MM-DD format
+        const startTime = values[1] || null;
+        const endTime = values[2] || null;
+        const estimatedEndTime = values[3] || '17:00';
+        const workedHours = parseFloat(values[4]) || 0;
+        const earnings = parseFloat(values[5]) || 0;
+        const isDayOff = values[6]?.toLowerCase() === 'true';
+        const pausedTime = parseInt(values[7]) || 0;
+
+        importedData[date] = {
+          date,
+          startTime,
+          endTime,
+          estimatedEndTime,
+          isWorking: false,
+          workedHours,
+          earnings,
+          isPaused: false,
+          pausedTime,
+          interrupts: [],
+          isDayOff,
+        };
+      }
+
+      if (Object.keys(importedData).length === 0) {
+        throw new Error('No valid data found in CSV');
+      }
+
+      const processedData = recomputeImportedData(importedData, hourlyRate);
+      setRecords(processedData);
+      localStorage.setItem('workHoursData', JSON.stringify(processedData));
+      localStorage.setItem('lastSyncTime', new Date().toISOString());
+
+      toast({
+        title: 'Sync successful',
+        description: `Synced ${Object.keys(processedData).length} records from Google Sheet.`
+      });
     } catch (error: any) {
-      console.error('Import failed:', error);
-      toast({ 
-        title: 'Import failed', 
-        description: error.message || 'Failed to import from Google Sheet.',
-        variant: 'destructive' 
+      console.error('Sync failed:', error);
+      toast({
+        title: 'Sync failed',
+        description: error.message || 'Failed to sync from Google Sheet. Make sure the URL is a published CSV.',
+        variant: 'destructive'
       });
     } finally {
-      setIsRestoring(false);
+      setIsSyncing(false);
     }
+  };
+
+  const restoreFromGoogleSheets = async () => {
+    // Legacy function for Supabase - redirect to new sync function
+    await syncFromGoogleSheets();
   };
 
 
@@ -601,7 +760,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
               <Button variant="outline" size="sm" onClick={handleImportClick} className="h-8">
                 Restore JSON
               </Button>
+              <Button variant="outline" size="sm" onClick={handleCSVImportClick} className="h-8">
+                Import CSV
+              </Button>
               <input type="file" accept="application/json" ref={fileInputRef} onChange={handleImportChange} className="hidden" />
+              <input type="file" accept=".csv,text/csv" ref={csvInputRef} onChange={handleCSVImportChange} className="hidden" />
             </div>
           </div>
           
@@ -621,52 +784,87 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {/* Google Sheets Integration */}
+          {/* Google Sheets Auto-Sync */}
           <Card className="border-primary/10 mb-6">
             <CardContent className="pt-4">
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <Cloud className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-sm font-medium">Google Sheets Integration</p>
-                    <p className="text-xs text-muted-foreground">Real-time sync with your published Google Sheet</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">Google Sheets Auto-Sync</p>
+                      <p className="text-xs text-muted-foreground">
+                        {autoSyncEnabled
+                          ? `Syncing every ${syncInterval} minutes`
+                          : 'Paste your published CSV URL below'}
+                      </p>
+                    </div>
                   </div>
+                  {localStorage.getItem('lastSyncTime') && (
+                    <Badge variant="outline" className="text-xs">
+                      Last sync: {new Date(localStorage.getItem('lastSyncTime')!).toLocaleTimeString()}
+                    </Badge>
+                  )}
                 </div>
-                
+
                 <div className="flex flex-col gap-2">
                   <Input
-                    placeholder="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv"
+                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?gid=0&single=true&output=csv"
                     value={googleSheetId}
                     onChange={(e) => setGoogleSheetId(e.target.value)}
-                    className="flex-1"
+                    className="flex-1 font-mono text-xs"
                   />
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={backupToGoogleSheets}
-                      disabled={isBackingUp}
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={syncFromGoogleSheets}
+                      disabled={isSyncing || !googleSheetId.trim()}
                       className="min-w-[120px]"
                     >
-                      <Cloud className="h-4 w-4 mr-1" />
-                      {isBackingUp ? 'Exporting...' : 'Export CSV'}
+                      <CloudDownload className={`h-4 w-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? 'Syncing...' : 'Sync Now'}
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={restoreFromGoogleSheets}
-                      disabled={isRestoring || !googleSheetId.trim()}
-                      className="min-w-[120px]"
-                    >
-                      <CloudDownload className="h-4 w-4 mr-1" />
-                      {isRestoring ? 'Importing...' : 'Import from Sheet'}
-                    </Button>
+
+                    <div className="flex items-center gap-2 ml-auto">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={autoSyncEnabled}
+                          onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        Auto-sync
+                      </label>
+
+                      {autoSyncEnabled && (
+                        <>
+                          <span className="text-sm text-muted-foreground">every</span>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="1440"
+                            value={syncInterval}
+                            onChange={(e) => setSyncInterval(parseInt(e.target.value) || 30)}
+                            className="w-20 h-8 text-sm"
+                          />
+                          <span className="text-sm text-muted-foreground">min</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-                
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p><strong>Import:</strong> Use format: https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv</p>
-                  <p><strong>Export:</strong> Downloads a CSV file you can import into your Google Sheet.</p>
+
+                <div className="text-xs text-muted-foreground space-y-1 bg-muted/50 p-3 rounded">
+                  <p><strong>📝 How to get CSV URL:</strong></p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Open your Google Sheet</li>
+                    <li>Click <strong>File → Share → Publish to web</strong></li>
+                    <li>Choose <strong>Entire Document</strong> or specific sheet</li>
+                    <li>Select <strong>Comma-separated values (.csv)</strong></li>
+                    <li>Click <strong>Publish</strong> and copy the URL</li>
+                  </ol>
                 </div>
               </div>
             </CardContent>
