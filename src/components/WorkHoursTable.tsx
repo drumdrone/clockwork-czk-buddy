@@ -66,6 +66,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const currentMonth = selectedMonth;
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -319,6 +320,78 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleCSVImportClick = () => {
+    csvInputRef.current?.click();
+  };
+
+  const handleCSVImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        throw new Error('CSV file is empty or invalid');
+      }
+
+      // Parse CSV - expecting format: Date,Start Time,End Time,Estimated End,Worked Hours,Earnings,Day Off,Paused Time
+      const headers = lines[0].split(',').map(h => h.trim());
+      const importedData: { [key: string]: DayRecord } = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        if (values.length < 5 || !values[0]) continue; // Skip invalid rows
+
+        const date = values[0]; // YYYY-MM-DD format
+        const startTime = values[1] || null;
+        const endTime = values[2] || null;
+        const estimatedEndTime = values[3] || '17:00';
+        const workedHours = parseFloat(values[4]) || 0;
+        const earnings = parseFloat(values[5]) || 0;
+        const isDayOff = values[6]?.toLowerCase() === 'true';
+        const pausedTime = parseInt(values[7]) || 0;
+
+        importedData[date] = {
+          date,
+          startTime,
+          endTime,
+          estimatedEndTime,
+          isWorking: false,
+          workedHours,
+          earnings,
+          isPaused: false,
+          pausedTime,
+          interrupts: [],
+          isDayOff,
+        };
+      }
+
+      if (Object.keys(importedData).length === 0) {
+        throw new Error('No valid data found in CSV');
+      }
+
+      const processedData = recomputeImportedData(importedData, hourlyRate);
+      setRecords(processedData);
+      localStorage.setItem('workHoursData', JSON.stringify(processedData));
+
+      toast({
+        title: 'CSV imported',
+        description: `Successfully imported ${Object.keys(processedData).length} records.`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: 'Import failed',
+        description: err.message || 'Invalid CSV file.',
+        variant: 'destructive' as any,
+      });
+    } finally {
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
   };
 
   const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -601,7 +674,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
               <Button variant="outline" size="sm" onClick={handleImportClick} className="h-8">
                 Restore JSON
               </Button>
+              <Button variant="outline" size="sm" onClick={handleCSVImportClick} className="h-8">
+                Import CSV
+              </Button>
               <input type="file" accept="application/json" ref={fileInputRef} onChange={handleImportChange} className="hidden" />
+              <input type="file" accept=".csv,text/csv" ref={csvInputRef} onChange={handleCSVImportChange} className="hidden" />
             </div>
           </div>
           
@@ -621,7 +698,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          {/* Google Sheets Integration */}
+          {/* Google Sheets Integration - only show if Supabase is configured */}
+          {import.meta.env.VITE_SUPABASE_URL && (
           <Card className="border-primary/10 mb-6">
             <CardContent className="pt-4">
               <div className="flex flex-col gap-4">
@@ -671,6 +749,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
               </div>
             </CardContent>
           </Card>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Card className="border-primary/10">
