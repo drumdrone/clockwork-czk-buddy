@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && echo 'Build complete. Push to main branch to trigger GitHub Pages deployment.'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
