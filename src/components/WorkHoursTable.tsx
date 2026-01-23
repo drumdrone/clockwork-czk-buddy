@@ -695,8 +695,13 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         wh = Number.isFinite(parsed) ? parsed : 0;
       }
 
-      // Compute from times when missing or zero
-      const computed = wh > 0 ? wh : computeWorkedHoursForRecord(r);
+      console.log(`[${dateKey}] CSV workedHours:`, wh, 'startTime:', r.startTime, 'endTime:', r.endTime);
+
+      // Always compute from times if we have both start and end time
+      const computed = (r.startTime && r.endTime) ? computeWorkedHoursForRecord(r) : (wh > 0 ? wh : 0);
+
+      console.log(`[${dateKey}] Computed workedHours:`, computed);
+
       r.workedHours = computed;
       r.earnings = Math.max(0, computed * (typeof rate === 'number' && isFinite(rate) ? rate : 0));
     });
