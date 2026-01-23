@@ -387,22 +387,48 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         throw new Error('CSV file is empty or invalid');
       }
 
-      // Parse CSV - expecting format: Date,Start Time,End Time,Estimated End,Worked Hours,Earnings,Day Off,Paused Time
-      const headers = lines[0].split(',').map(h => h.trim());
+      // Parse CSV - detect columns dynamically from headers
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      console.log('CSV Headers:', headers);
+
       const importedData: { [key: string]: DayRecord } = {};
+
+      // Find column indices dynamically
+      const findColumn = (names: string[]) => {
+        for (const name of names) {
+          const idx = headers.findIndex(h => h.includes(name.toLowerCase()));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      const dateIdx = findColumn(['date', 'datum']);
+      const startIdx = findColumn(['start time', 'start', 'začátek', 'zacatek']);
+      const endIdx = findColumn(['end time', 'end', 'konec']);
+      const estEndIdx = findColumn(['estimated end', 'est. end', 'est end', 'odhadovaný konec']);
+      const workedIdx = findColumn(['worked hours', 'hours', 'hodiny']);
+      const earningsIdx = findColumn(['earnings', 'výdělek', 'vydelek']);
+      const dayOffIdx = findColumn(['day off', 'volno']);
+      const pausedIdx = findColumn(['paused', 'pauza']);
+
+      console.log('Column indices:', { dateIdx, startIdx, endIdx, estEndIdx, workedIdx, earningsIdx, dayOffIdx, pausedIdx });
 
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
-        if (values.length < 5 || !values[0]) continue; // Skip invalid rows
+        if (values.length < 2) continue; // Skip invalid rows
 
-        const date = values[0]; // YYYY-MM-DD format
-        const startTime = values[1] || null;
-        const endTime = values[2] || null;
-        const estimatedEndTime = values[3] || '17:00';
-        const workedHours = parseFloat(values[4]) || 0;
-        const earnings = parseFloat(values[5]) || 0;
-        const isDayOff = values[6]?.toLowerCase() === 'true';
-        const pausedTime = parseInt(values[7]) || 0;
+        const date = dateIdx >= 0 ? values[dateIdx] : values[0];
+        if (!date || date.toLowerCase().includes('hourly') || date.toLowerCase().includes('daily') || date.toLowerCase().includes('monthly')) {
+          continue; // Skip config rows
+        }
+
+        const startTime = startIdx >= 0 ? values[startIdx] : null;
+        const endTime = endIdx >= 0 ? values[endIdx] : null;
+        const estimatedEndTime = estEndIdx >= 0 ? values[estEndIdx] : '17:00';
+        const workedHours = workedIdx >= 0 ? parseFloat(values[workedIdx]) || 0 : 0;
+        const earnings = earningsIdx >= 0 ? parseFloat(values[earningsIdx]) || 0 : 0;
+        const isDayOff = dayOffIdx >= 0 ? values[dayOffIdx]?.toLowerCase() === 'true' : false;
+        const pausedTime = pausedIdx >= 0 ? parseInt(values[pausedIdx]) || 0 : 0;
 
         importedData[date] = {
           date,
@@ -558,22 +584,48 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         throw new Error('CSV file is empty or invalid');
       }
 
-      // Parse CSV - expecting format: Date,Start Time,End Time,Estimated End,Worked Hours,Earnings,Day Off,Paused Time
-      const headers = lines[0].split(',').map(h => h.trim());
+      // Parse CSV - detect columns dynamically from headers
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      console.log('CSV Headers:', headers);
+
       const importedData: { [key: string]: DayRecord } = {};
+
+      // Find column indices dynamically
+      const findColumn = (names: string[]) => {
+        for (const name of names) {
+          const idx = headers.findIndex(h => h.includes(name.toLowerCase()));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      const dateIdx = findColumn(['date', 'datum']);
+      const startIdx = findColumn(['start time', 'start', 'začátek', 'zacatek']);
+      const endIdx = findColumn(['end time', 'end', 'konec']);
+      const estEndIdx = findColumn(['estimated end', 'est. end', 'est end', 'odhadovaný konec']);
+      const workedIdx = findColumn(['worked hours', 'hours', 'hodiny']);
+      const earningsIdx = findColumn(['earnings', 'výdělek', 'vydelek']);
+      const dayOffIdx = findColumn(['day off', 'volno']);
+      const pausedIdx = findColumn(['paused', 'pauza']);
+
+      console.log('Column indices:', { dateIdx, startIdx, endIdx, estEndIdx, workedIdx, earningsIdx, dayOffIdx, pausedIdx });
 
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
-        if (values.length < 5 || !values[0]) continue; // Skip invalid rows
+        if (values.length < 2) continue; // Skip invalid rows
 
-        const date = values[0]; // YYYY-MM-DD format
-        const startTime = values[1] || null;
-        const endTime = values[2] || null;
-        const estimatedEndTime = values[3] || '17:00';
-        const workedHours = parseFloat(values[4]) || 0;
-        const earnings = parseFloat(values[5]) || 0;
-        const isDayOff = values[6]?.toLowerCase() === 'true';
-        const pausedTime = parseInt(values[7]) || 0;
+        const date = dateIdx >= 0 ? values[dateIdx] : values[0];
+        if (!date || date.toLowerCase().includes('hourly') || date.toLowerCase().includes('daily') || date.toLowerCase().includes('monthly')) {
+          continue; // Skip config rows
+        }
+
+        const startTime = startIdx >= 0 ? values[startIdx] : null;
+        const endTime = endIdx >= 0 ? values[endIdx] : null;
+        const estimatedEndTime = estEndIdx >= 0 ? values[estEndIdx] : '17:00';
+        const workedHours = workedIdx >= 0 ? parseFloat(values[workedIdx]) || 0 : 0;
+        const earnings = earningsIdx >= 0 ? parseFloat(values[earningsIdx]) || 0 : 0;
+        const isDayOff = dayOffIdx >= 0 ? values[dayOffIdx]?.toLowerCase() === 'true' : false;
+        const pausedTime = pausedIdx >= 0 ? parseInt(values[pausedIdx]) || 0 : 0;
 
         importedData[date] = {
           date,
