@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Calendar, CreditCard, Target, Cloud, CloudDownload } from 'lucide-react';
+import { Play, Square, Calendar, CreditCard, Target, Cloud, CloudDownload, CloudUpload } from 'lucide-react';
 import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
 import TimeInput from './TimeInput';
@@ -61,7 +61,12 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     const saved = localStorage.getItem('googleSheetId');
     return saved || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT_JmZVro__21S9k6ZE3WbwEvr-O9MwhOMesGAS_8hVzejC-RT8hpjouIXBBqOPJr-pjFTvYG6LiWsm/pub?gid=0&single=true&output=csv';
   });
-  
+
+  const [googleAppsScriptUrl, setGoogleAppsScriptUrl] = useState(() => {
+    const saved = localStorage.getItem('googleAppsScriptUrl');
+    return saved || '';
+  });
+
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -123,9 +128,10 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     localStorage.setItem('hourlyRate', hourlyRate.toString());
     localStorage.setItem('dailyHoursGoal', dailyHoursGoal.toString());
     localStorage.setItem('googleSheetId', googleSheetId);
+    localStorage.setItem('googleAppsScriptUrl', googleAppsScriptUrl);
     localStorage.setItem('autoSyncEnabled', autoSyncEnabled.toString());
     localStorage.setItem('syncInterval', syncInterval.toString());
-  }, [records, hourlyRate, dailyHoursGoal, googleSheetId, autoSyncEnabled, syncInterval]);
+  }, [records, hourlyRate, dailyHoursGoal, googleSheetId, googleAppsScriptUrl, autoSyncEnabled, syncInterval]);
 
   // Auto-sync effect
   useEffect(() => {
@@ -672,6 +678,56 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     await syncFromGoogleSheets();
   };
 
+  const exportDayToGoogleSheets = async (date: string) => {
+    if (!googleAppsScriptUrl.trim()) {
+      toast({
+        title: 'Google Apps Script URL required',
+        description: 'Please enter your Google Apps Script Web App URL first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const record = records[date];
+    if (!record) {
+      toast({
+        title: 'No data',
+        description: 'No data found for this date.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors', // Google Apps Script requires no-cors
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date: record.date,
+          startTime: record.startTime || '',
+          endTime: record.endTime || '',
+          workedHours: record.workedHours || 0,
+          earnings: record.earnings || 0,
+        }),
+      });
+
+      toast({
+        title: 'Exported to Google Sheets',
+        description: `Data for ${format(parseDateLocal(date), 'MMM d, yyyy')} has been sent to your Google Sheet.`,
+      });
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      toast({
+        title: 'Export failed',
+        description: error.message || 'Failed to export to Google Sheets.',
+        variant: 'destructive'
+      });
+    }
+  };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
@@ -865,12 +921,25 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Input
-                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?gid=0&single=true&output=csv"
-                    value={googleSheetId}
-                    onChange={(e) => setGoogleSheetId(e.target.value)}
-                    className="flex-1 font-mono text-xs"
-                  />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Import URL (CSV for syncing data from Sheets)</label>
+                    <Input
+                      placeholder="https://docs.google.com/spreadsheets/d/.../pub?gid=0&single=true&output=csv"
+                      value={googleSheetId}
+                      onChange={(e) => setGoogleSheetId(e.target.value)}
+                      className="flex-1 font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Export URL (Apps Script for exporting individual days)</label>
+                    <Input
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      value={googleAppsScriptUrl}
+                      onChange={(e) => setGoogleAppsScriptUrl(e.target.value)}
+                      className="flex-1 font-mono text-xs"
+                    />
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <Button
@@ -1034,6 +1103,15 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                                 onAddInterrupt={(startTime, minutes) => addInterrupt(date, startTime, minutes)}
                                 disabled={!record.startTime}
                               />
+                              <Button
+                                size="sm"
+                                onClick={() => exportDayToGoogleSheets(date)}
+                                disabled={!googleAppsScriptUrl.trim() || (!record.startTime && !record.endTime)}
+                                className="h-8 w-8 p-0 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-30"
+                                title="Export to Google Sheets"
+                              >
+                                <CloudUpload className="h-3 w-3" />
+                              </Button>
                             </>
                           ) : (
                             <>
