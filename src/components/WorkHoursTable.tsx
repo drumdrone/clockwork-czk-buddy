@@ -739,24 +739,19 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     }
 
     try {
-      // Get all days in current month
+      // Get all days in current month - ONLY dates, no data
+      // This creates empty rows for the month structure
       const monthData = [];
       for (let i = 0; i < daysInMonth; i++) {
         const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
-        const record = records[date] || {
-          date,
+
+        // Send ONLY the date - Apps Script will skip existing rows
+        monthData.push({
+          date: date,
           startTime: '',
           endTime: '',
           workedHours: 0,
           earnings: 0,
-        };
-
-        monthData.push({
-          date: record.date,
-          startTime: record.startTime || '',
-          endTime: record.endTime || '',
-          workedHours: record.workedHours || 0,
-          earnings: record.earnings || 0,
         });
       }
 
@@ -770,8 +765,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       });
 
       toast({
-        title: 'Month exported to Google Sheets',
-        description: `All ${daysInMonth} days of ${format(currentMonth, 'MMMM yyyy')} have been sent to your Google Sheet.`,
+        title: 'Month structure created',
+        description: `Created date rows for ${format(currentMonth, 'MMMM yyyy')}. Existing data was not modified.`,
       });
     } catch (error: any) {
       console.error('Export failed:', error);
@@ -1014,9 +1009,10 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                       onClick={exportMonthToGoogleSheets}
                       disabled={!googleAppsScriptUrl.trim()}
                       className="min-w-[140px]"
+                      title="Create empty date rows for the month (won't overwrite existing data)"
                     >
                       <CloudUpload className="h-4 w-4 mr-1" />
-                      Export Month
+                      Init Month
                     </Button>
 
                     <div className="flex items-center gap-2 ml-auto">
