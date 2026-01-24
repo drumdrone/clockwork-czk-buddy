@@ -728,6 +728,56 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     }
   };
 
+  const exportMonthToGoogleSheets = async () => {
+    if (!googleAppsScriptUrl.trim()) {
+      toast({
+        title: 'Google Apps Script URL required',
+        description: 'Please enter your Google Apps Script Web App URL first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      // Get all days in current month - ONLY dates, no data
+      // This creates empty rows for the month structure
+      const monthData = [];
+      for (let i = 0; i < daysInMonth; i++) {
+        const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
+
+        // Send ONLY the date - Apps Script will skip existing rows
+        monthData.push({
+          date: date,
+          startTime: '',
+          endTime: '',
+          workedHours: 0,
+          earnings: 0,
+        });
+      }
+
+      await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(monthData),
+      });
+
+      toast({
+        title: 'Month structure created',
+        description: `Created date rows for ${format(currentMonth, 'MMMM yyyy')}. Existing data was not modified.`,
+      });
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      toast({
+        title: 'Export failed',
+        description: error.message || 'Failed to export month to Google Sheets.',
+        variant: 'destructive'
+      });
+    }
+  };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('cs-CZ', {
@@ -951,6 +1001,18 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                     >
                       <CloudDownload className={`h-4 w-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
                       {isSyncing ? 'Syncing...' : 'Sync Now'}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportMonthToGoogleSheets}
+                      disabled={!googleAppsScriptUrl.trim()}
+                      className="min-w-[140px]"
+                      title="Create empty date rows for the month (won't overwrite existing data)"
+                    >
+                      <CloudUpload className="h-4 w-4 mr-1" />
+                      Init Month
                     </Button>
 
                     <div className="flex items-center gap-2 ml-auto">
