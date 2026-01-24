@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Calendar, CreditCard, Target, Cloud, CloudDownload, CloudUpload } from 'lucide-react';
+import { Play, Square, Calendar, CreditCard, Target, Cloud, CloudDownload, CloudUpload, ExternalLink } from 'lucide-react';
 import InterruptDialog from './InterruptDialog';
 import TimeSparkline from './TimeSparkline';
 import TimeInput from './TimeInput';
@@ -1013,6 +1013,22 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                     >
                       <CloudUpload className="h-4 w-4 mr-1" />
                       Init Month
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className="h-8"
+                    >
+                      <a
+                        href="https://docs.google.com/spreadsheets/d/12E9XXt5p7Ax2W10wV0866lq8sc7zw2CCm9xHG4pWbaU/edit?gid=0#gid=0"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Open Google Sheets"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
                     </Button>
 
                     <div className="flex items-center gap-2 ml-auto">
