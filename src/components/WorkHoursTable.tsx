@@ -689,15 +689,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     }
 
     const record = records[date];
-    if (!record) {
-      toast({
-        title: 'No data',
-        description: 'No data found for this date.',
-        variant: 'destructive'
-      });
-      return;
-    }
 
+    // Allow exporting even if no data exists - send empty record with date
     try {
       const response = await fetch(googleAppsScriptUrl, {
         method: 'POST',
@@ -706,11 +699,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          date: record.date,
-          startTime: record.startTime || '',
-          endTime: record.endTime || '',
-          workedHours: record.workedHours || 0,
-          earnings: record.earnings || 0,
+          date: date,
+          startTime: record?.startTime || '',
+          endTime: record?.endTime || '',
+          workedHours: record?.workedHours || 0,
+          earnings: record?.earnings || 0,
         }),
       });
 
@@ -1184,7 +1177,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                               <Button
                                 size="sm"
                                 onClick={() => exportDayToGoogleSheets(date)}
-                                disabled={!googleAppsScriptUrl.trim() || (!record.startTime && !record.endTime)}
+                                disabled={!googleAppsScriptUrl.trim()}
                                 className="h-8 w-8 p-0 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-30"
                                 title="Export to Google Sheets"
                               >
