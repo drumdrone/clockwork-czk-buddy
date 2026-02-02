@@ -191,7 +191,12 @@ const Index = () => {
         </TabsContent>
         
         <TabsContent value="stats" className="mt-0">
-          <MonthlyStats records={records} hourlyRate={hourlyRate} selectedMonth={selectedMonth} />
+          <MonthlyStats
+            records={records}
+            hourlyRate={hourlyRate}
+            selectedMonth={selectedMonth}
+            setSelectedMonth={setSelectedMonth}
+          />
         </TabsContent>
         
         <TabsContent value="data" className="mt-0">

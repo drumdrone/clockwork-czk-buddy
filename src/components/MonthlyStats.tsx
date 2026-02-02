@@ -32,12 +32,12 @@ interface MonthlyStatsProps {
   records: { [key: string]: DayRecord };
   hourlyRate: number;
   selectedMonth: Date;
+  setSelectedMonth?: (month: Date) => void;
 }
 
-const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, selectedMonth }) => {
+const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, selectedMonth, setSelectedMonth }) => {
   const [monthlyGoal, setMonthlyGoal] = useState<number>(50000);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
-  const [currentViewMonth, setCurrentViewMonth] = useState(selectedMonth);
   const [exportUrl, setExportUrl] = useState('');
   const [exporting, setExporting] = useState(false);
   const [loadingGoal, setLoadingGoal] = useState(false);
@@ -78,12 +78,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
 
   // Load goal when component mounts or month changes
   useEffect(() => {
-    loadMonthlyGoal(currentViewMonth);
-  }, [currentViewMonth]);
-
-  // Update currentViewMonth when selectedMonth prop changes
-  useEffect(() => {
-    setCurrentViewMonth(selectedMonth);
+    loadMonthlyGoal(selectedMonth);
   }, [selectedMonth]);
 
   const formatCurrency = (amount: number) => {
@@ -104,8 +99,8 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   const getDailyStats = () => {
     const currentMonthRecords = Object.values(records).filter(record => {
       const recordDate = parseDateLocal(record.date);
-      return recordDate.getMonth() === currentViewMonth.getMonth() && 
-             recordDate.getFullYear() === currentViewMonth.getFullYear();
+      return recordDate.getMonth() === selectedMonth.getMonth() &&
+             recordDate.getFullYear() === selectedMonth.getFullYear();
     });
 
     return currentMonthRecords
@@ -130,7 +125,7 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `daily-work-hours-${format(currentViewMonth, 'yyyy-MM')}.csv`;
+    link.download = `daily-work-hours-${format(selectedMonth, 'yyyy-MM')}.csv`;
     link.click();
   };
 
@@ -200,8 +195,8 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
 
   const dailyStats = getDailyStats();
   // Build daily earnings data and append weekly total bars (1-7, 8-14, 15-21, 22-31)
-  const start = startOfMonth(currentViewMonth);
-  const end = endOfMonth(currentViewMonth);
+  const start = startOfMonth(selectedMonth);
+  const end = endOfMonth(selectedMonth);
   const days = eachDayOfInterval({ start, end });
 
   const dayEntries = days.map((d) => {
@@ -248,14 +243,14 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
   
   // Calculate working days from today to end of month for current view month (Monday-Friday only)
   const today = new Date();
-  const endOfViewMonth = endOfMonth(currentViewMonth);
-  
+  const endOfViewMonth = endOfMonth(selectedMonth);
+
   // If viewing current month, calculate from today; otherwise, calculate from start of viewed month
-  const startDate = currentViewMonth.getMonth() === today.getMonth() && 
-                    currentViewMonth.getFullYear() === today.getFullYear() 
-                    ? today 
-                    : startOfMonth(currentViewMonth);
-  
+  const startDate = selectedMonth.getMonth() === today.getMonth() &&
+                    selectedMonth.getFullYear() === today.getFullYear()
+                    ? today
+                    : startOfMonth(selectedMonth);
+
   const remainingDays = eachDayOfInterval({
     start: startDate,
     end: endOfViewMonth
@@ -287,14 +282,18 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(currentViewMonth, "MMMM yyyy")}
+                    {format(selectedMonth, "MMMM yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <CalendarComponent
                     mode="single"
-                    selected={currentViewMonth}
-                    onSelect={(date) => date && setCurrentViewMonth(startOfMonth(date))}
+                    selected={selectedMonth}
+                    onSelect={(date) => {
+                      if (date && setSelectedMonth) {
+                        setSelectedMonth(startOfMonth(date));
+                      }
+                    }}
                     initialFocus
                     className="pointer-events-auto"
                   />
@@ -378,12 +377,12 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
                         onChange={(e) => setMonthlyGoal(Number(e.target.value))}
                         onBlur={() => {
                           setIsEditingGoal(false);
-                          saveMonthlyGoal(monthlyGoal, currentViewMonth);
+                          saveMonthlyGoal(monthlyGoal, selectedMonth);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             setIsEditingGoal(false);
-                            saveMonthlyGoal(monthlyGoal, currentViewMonth);
+                            saveMonthlyGoal(monthlyGoal, selectedMonth);
                           }
                         }}
                         className="mt-1"
