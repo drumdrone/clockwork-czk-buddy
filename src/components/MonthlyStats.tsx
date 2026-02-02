@@ -103,9 +103,15 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
              recordDate.getFullYear() === selectedMonth.getFullYear();
     });
 
-    return currentMonthRecords
-      .filter(record => record.workedHours > 0)
-      .sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
+    const recordsWithHours = currentMonthRecords.filter(record => record.workedHours > 0);
+
+    // Debug logging to help identify missing data issues
+    if (currentMonthRecords.length > 0 && recordsWithHours.length === 0) {
+      console.log(`MonthlyStats: Found ${currentMonthRecords.length} records for ${format(selectedMonth, 'MMMM yyyy')}, but all have workedHours = 0`);
+      console.log('Records:', currentMonthRecords.map(r => ({ date: r.date, workedHours: r.workedHours, startTime: r.startTime, endTime: r.endTime })));
+    }
+
+    return recordsWithHours.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
   };
 
   const exportToCSV = () => {
