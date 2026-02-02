@@ -690,9 +690,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
     const record = records[date];
 
-    // Allow exporting even if no data exists - send empty record with date
+    // Export the day's data
     try {
-      const response = await fetch(googleAppsScriptUrl, {
+      await fetch(googleAppsScriptUrl, {
         method: 'POST',
         mode: 'no-cors', // Google Apps Script requires no-cors
         headers: {
@@ -709,7 +709,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
       toast({
         title: 'Exported to Google Sheets',
-        description: `Data for ${format(parseDateLocal(date), 'MMM d, yyyy')} has been sent to your Google Sheet.`,
+        description: `Data for ${format(parseDateLocal(date), 'MMM d, yyyy')} has been ${record ? 'updated in' : 'added to'} your Google Sheet.`,
       });
     } catch (error: any) {
       console.error('Export failed:', error);
@@ -732,19 +732,19 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     }
 
     try {
-      // Get all days in current month - ONLY dates, no data
-      // This creates empty rows for the month structure
+      // Get all days in current month with actual data
       const monthData = [];
       for (let i = 0; i < daysInMonth; i++) {
         const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
+        const record = records[date];
 
-        // Send ONLY the date - Apps Script will skip existing rows
+        // Include all days - Apps Script will check for duplicates
         monthData.push({
           date: date,
-          startTime: '',
-          endTime: '',
-          workedHours: 0,
-          earnings: 0,
+          startTime: record?.startTime || '',
+          endTime: record?.endTime || '',
+          workedHours: record?.workedHours || 0,
+          earnings: record?.earnings || 0,
         });
       }
 
@@ -758,8 +758,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       });
 
       toast({
-        title: 'Month structure created',
-        description: `Created date rows for ${format(currentMonth, 'MMMM yyyy')}. Existing data was not modified.`,
+        title: 'Month exported to Google Sheets',
+        description: `Exported data for ${format(currentMonth, 'MMMM yyyy')}. Duplicate dates were automatically skipped.`,
       });
     } catch (error: any) {
       console.error('Export failed:', error);
