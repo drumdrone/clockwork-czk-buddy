@@ -734,19 +734,49 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     try {
       // Get all days in current month with actual data
       const monthData = [];
+      let willBeFiltered = 0;
+      let hasDataWithoutStartTime = 0;
+
       for (let i = 0; i < daysInMonth; i++) {
         const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
         const record = records[date];
 
-        // Include all days - Apps Script will check for duplicates
-        monthData.push({
+        const dataToExport = {
           date: date,
           startTime: record?.startTime || '',
           endTime: record?.endTime || '',
           workedHours: record?.workedHours || 0,
           earnings: record?.earnings || 0,
-        });
+        };
+
+        // Track records that will be filtered by Apps Script
+        if (!dataToExport.startTime && dataToExport.workedHours === 0) {
+          willBeFiltered++;
+        }
+
+        // Track records with hours but no start time (potential issue)
+        if (!dataToExport.startTime && dataToExport.workedHours > 0) {
+          hasDataWithoutStartTime++;
+          console.warn(`⚠️ Date ${date} has ${dataToExport.workedHours} hours but no startTime - will be filtered by Apps Script!`);
+        }
+
+        // Include all days - Apps Script will check for duplicates
+        monthData.push(dataToExport);
       }
+
+      // Show warning if there are records with hours but no start time
+      if (hasDataWithoutStartTime > 0) {
+        toast({
+          title: '⚠️ Warning: Some records may be skipped',
+          description: `${hasDataWithoutStartTime} day(s) have worked hours but no start time. These will be filtered out by Google Sheets. Please add start times to export them.`,
+          variant: 'destructive'
+        });
+        console.error(`❌ ${hasDataWithoutStartTime} records will be lost due to missing startTime:`,
+          monthData.filter(d => !d.startTime && d.workedHours > 0).map(d => d.date));
+        return; // Don't export if data would be lost
+      }
+
+      const recordsWithData = monthData.length - willBeFiltered;
 
       await fetch(googleAppsScriptUrl, {
         method: 'POST',
@@ -759,7 +789,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
       toast({
         title: 'Month exported to Google Sheets',
-        description: `Exported data for ${format(currentMonth, 'MMMM yyyy')}. Duplicate dates were automatically skipped.`,
+        description: `Exported ${recordsWithData} day(s) with data for ${format(currentMonth, 'MMMM yyyy')}. ${willBeFiltered} empty day(s) were skipped. Duplicate dates were automatically skipped.`,
       });
     } catch (error: any) {
       console.error('Export failed:', error);
@@ -769,6 +799,86 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         variant: 'destructive'
       });
     }
+  };
+
+  const debugMonthData = () => {
+    console.clear();
+    console.log('%c=== MONTH DATA DIAGNOSTIC ===', 'font-size: 16px; font-weight: bold; color: #4285f4;');
+    console.log(`Month: ${format(currentMonth, 'MMMM yyyy')}`);
+    console.log(`Days in month: ${daysInMonth}\n`);
+
+    let totalRecords = 0;
+    let recordsWithData = 0;
+    let recordsWithHoursNoTime = 0;
+    let emptyRecords = 0;
+    const problematicDates: string[] = [];
+    const validDates: string[] = [];
+
+    for (let i = 0; i < daysInMonth; i++) {
+      const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
+      const record = records[date];
+      totalRecords++;
+
+      const startTime = record?.startTime || '';
+      const workedHours = record?.workedHours || 0;
+      const earnings = record?.earnings || 0;
+
+      // Will be filtered by Apps Script if no startTime and no workedHours
+      const willBeFiltered = !startTime && workedHours === 0;
+
+      // Problematic: has hours but no startTime
+      const hasIssue = !startTime && workedHours > 0;
+
+      if (willBeFiltered) {
+        emptyRecords++;
+      } else if (hasIssue) {
+        recordsWithHoursNoTime++;
+        problematicDates.push(date);
+        console.log(`%c❌ ${date}`, 'color: red; font-weight: bold;', {
+          startTime: startTime || '(missing)',
+          workedHours,
+          earnings,
+          issue: 'HAS HOURS BUT NO START TIME - WILL BE FILTERED!'
+        });
+      } else {
+        recordsWithData++;
+        validDates.push(date);
+        if (workedHours > 0) {
+          console.log(`%c✅ ${date}`, 'color: green;', {
+            startTime,
+            endTime: record?.endTime || '',
+            workedHours,
+            earnings
+          });
+        }
+      }
+    }
+
+    console.log('\n%c=== SUMMARY ===', 'font-size: 14px; font-weight: bold; color: #4285f4;');
+    console.log(`Total days: ${totalRecords}`);
+    console.log(`%c✅ Valid records (will export): ${recordsWithData}`, 'color: green;');
+    console.log(`%c⚪ Empty records (will skip): ${emptyRecords}`, 'color: gray;');
+    console.log(`%c❌ Problematic records (has hours but no start time): ${recordsWithHoursNoTime}`, 'color: red; font-weight: bold;');
+
+    if (recordsWithHoursNoTime > 0) {
+      console.log('\n%c⚠️ WARNING: These dates will be FILTERED by Google Sheets:', 'font-size: 14px; font-weight: bold; color: red;');
+      console.table(problematicDates.map(date => {
+        const rec = records[date];
+        return {
+          Date: date,
+          'Start Time': rec?.startTime || '(missing)',
+          'Worked Hours': rec?.workedHours || 0,
+          Earnings: rec?.earnings || 0,
+          Issue: 'Missing start time'
+        };
+      }));
+    }
+
+    toast({
+      title: 'Diagnostic complete',
+      description: `Found ${recordsWithHoursNoTime} problematic record(s). Check browser console (F12) for details.`,
+      variant: recordsWithHoursNoTime > 0 ? 'destructive' : 'default'
+    });
   };
 
 
@@ -1006,6 +1116,16 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
                     >
                       <CloudUpload className="h-4 w-4 mr-1" />
                       Init Month
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={debugMonthData}
+                      className="min-w-[100px]"
+                      title="Check which records will be exported/filtered"
+                    >
+                      🔍 Debug
                     </Button>
 
                     <Button
