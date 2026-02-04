@@ -366,38 +366,44 @@ const DataManager = () => {
     reader.readAsText(file);
   };
 
-  // Sync from CSV URL
+  // Sync from URL (supports both CSV and Apps Script URLs)
   const syncFromCSV = async () => {
-    if (!syncUrl) {
+    // Use exportUrl (Apps Script) if syncUrl is not set
+    const urlToUse = syncUrl || exportUrl;
+
+    if (!urlToUse) {
       toast({
         title: "Error",
-        description: "No sync URL configured",
+        description: "No sync URL configured. Set up an Import CSV URL or Export URL in Sync Settings.",
         variant: "destructive",
       });
       return;
     }
 
     setSyncing(true);
-    console.log('Sending restore request with URL:', syncUrl);
+
+    // Determine if it's an Apps Script URL
+    const isAppsScript = urlToUse.includes('script.google.com') || urlToUse.includes('googleusercontent.com');
+    console.log(`Syncing from ${isAppsScript ? 'Apps Script' : 'CSV'} URL:`, urlToUse);
 
     try {
+      // Use 'fetch' action for Apps Script, 'restore' for CSV
       const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
-        body: {
-          action: 'restore',
-          csvUrl: syncUrl
-        }
+        body: isAppsScript
+          ? { action: 'fetch', webAppUrl: urlToUse }
+          : { action: 'restore', csvUrl: urlToUse }
       });
 
       if (error) throw error;
 
       if (data?.success && data?.data) {
         const { workHoursData, hourlyRate, dailyHoursGoal } = data.data;
-        
+
         // Update settings
         await updateUserSettings({
           ...userSettings,
-          hourly_rate: hourlyRate,
-          daily_hours_goal: dailyHoursGoal,
+          hourly_rate: hourlyRate || userSettings.hourly_rate,
+          daily_hours_goal: dailyHoursGoal || userSettings.daily_hours_goal,
           last_sync_at: new Date().toISOString()
         });
 
@@ -407,13 +413,13 @@ const DataManager = () => {
           const newRecords = Object.entries(workHoursData).map(([date, record]: [string, any]) => ({
             user_id: user.id,
             date: date,
-            start_time: record.startTime || null,
-            end_time: record.endTime || null,
-            estimated_end_time: record.estimatedEndTime || null,
-            worked_hours: record.workedHours || 0,
+            start_time: record.startTime || record.start_time || null,
+            end_time: record.endTime || record.end_time || null,
+            estimated_end_time: record.estimatedEndTime || record.estimated_end_time || null,
+            worked_hours: record.workedHours || record.worked_hours || 0,
             earnings: record.earnings || 0,
-            is_day_off: record.isDayOff || false,
-            paused_time: record.pausedTime || 0,
+            is_day_off: record.isDayOff || record.is_day_off || false,
+            paused_time: record.pausedTime || record.paused_time || 0,
             is_working: false,
             is_paused: false,
             interrupts: record.interrupts || [],
@@ -422,26 +428,33 @@ const DataManager = () => {
           if (newRecords.length > 0) {
             const { error: importError } = await supabase
               .from('work_records')
-              .upsert(newRecords, { 
+              .upsert(newRecords, {
                 onConflict: 'user_id,date',
-                ignoreDuplicates: false 
+                ignoreDuplicates: false
               });
 
             if (importError) throw importError;
-            
+
             await loadData();
             toast({
               title: "Success",
-              description: `Synced ${newRecords.length} records from CSV`,
+              description: `Imported ${newRecords.length} records from Google Sheets`,
+            });
+          } else {
+            toast({
+              title: "Info",
+              description: "No records found in Google Sheets",
             });
           }
         }
+      } else {
+        throw new Error(data?.error || 'Failed to import data');
       }
     } catch (error: any) {
       console.error('Sync error:', error);
       toast({
-        title: "Sync Error",
-        description: error.message || "Failed to sync data from CSV",
+        title: "Import Error",
+        description: error.message || "Failed to import data from Google Sheets",
         variant: "destructive",
       });
     } finally {
@@ -602,14 +615,14 @@ const DataManager = () => {
                   className="hidden"
                 />
               </label>
-              <Button 
-                onClick={syncFromCSV} 
-                variant="outline" 
+              <Button
+                onClick={syncFromCSV}
+                variant="outline"
                 size="sm"
-                disabled={syncing || !syncUrl}
+                disabled={syncing || (!syncUrl && !exportUrl)}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Importing...' : 'Import from CSV'}
+                {syncing ? 'Importing...' : 'Import from Sheets'}
               </Button>
               <Button 
                 onClick={exportToSheets} 
@@ -661,21 +674,15 @@ const DataManager = () => {
             <div className="mb-4 p-4 border rounded-lg bg-card">
               <h3 className="text-lg font-semibold mb-3">Google Sheets Sync Settings</h3>
               <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Import CSV URL (Google Sheets published CSV)</label>
-                  <Input
-                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?gid=0&single=true&output=csv"
-                    value={syncUrl}
-                    onChange={(e) => setSyncUrl(e.target.value)}
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Publish your Google Sheet as CSV and paste the URL here for importing data
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-sm">
+                  <p className="font-medium text-blue-800 dark:text-blue-200">Recommended: Use Apps Script URL</p>
+                  <p className="text-blue-600 dark:text-blue-300 mt-1">
+                    Set up a Google Apps Script to enable bidirectional sync. See GOOGLE_APPS_SCRIPT_BIDIRECTIONAL.md for instructions.
                   </p>
                 </div>
-                
+
                 <div>
-                  <label className="text-sm font-medium">Export URL (Google Apps Script Web App)</label>
+                  <label className="text-sm font-medium">Apps Script URL (for export & import)</label>
                   <Input
                     placeholder="https://script.google.com/macros/s/.../exec"
                     value={exportUrl}
@@ -683,7 +690,20 @@ const DataManager = () => {
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Create a Google Apps Script Web App URL for exporting data to Google Sheets
+                    This URL is used for both exporting TO and importing FROM Google Sheets
+                  </p>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-2">Alternative: Published CSV URL (read-only import)</p>
+                  <Input
+                    placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
+                    value={syncUrl}
+                    onChange={(e) => setSyncUrl(e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Optional: Use if you prefer importing from a published CSV instead of Apps Script
                   </p>
                 </div>
 
@@ -695,7 +715,7 @@ const DataManager = () => {
                     onChange={(e) => setAutoSyncEnabled(e.target.checked)}
                   />
                   <label htmlFor="autoSync" className="text-sm font-medium">
-                    Enable auto-import (import only, no auto-export)
+                    Enable auto-import
                   </label>
                 </div>
                 {autoSyncEnabled && (
