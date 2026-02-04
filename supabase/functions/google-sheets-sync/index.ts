@@ -22,6 +22,14 @@ function isAllowedHost(urlStr: string, allowed: string[]) {
   }
 }
 
+// Combined whitelist for all Google services
+const GOOGLE_HOSTS = [
+  'script.google.com',
+  'script.googleusercontent.com',
+  'docs.google.com',
+  'drive.google.com'
+];
+
 async function fetchWithTimeout(input: Request | string, init: RequestInit = {}, timeoutMs = 10000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -79,28 +87,120 @@ Deno.serve(async (req) => {
       if (!csvUrl) {
         return new Response(JSON.stringify({ error: 'CSV URL is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      if (!isHttpsUrl(csvUrl) || !isAllowedHost(csvUrl, ['docs.google.com', 'drive.google.com'])) {
-        return new Response(JSON.stringify({ error: 'Invalid csvUrl host. Only Google Docs/Drive published CSV URLs are allowed.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (!isHttpsUrl(csvUrl) || !isAllowedHost(csvUrl, GOOGLE_HOSTS)) {
+        return new Response(JSON.stringify({ error: 'Invalid URL host. Only Google URLs are allowed.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       const url = new URL(csvUrl);
-      console.log('Fetching CSV from host:', url.hostname);
+      console.log('Fetching data from host:', url.hostname);
 
-      const response = await fetchWithTimeout(csvUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Supabase Edge Function)' } }, 10000);
+      // Check if this is an Apps Script URL (supports JSON response)
+      const isAppsScript = url.hostname.includes('script.google') || url.hostname.includes('googleusercontent.com');
+
+      const response = await fetchWithTimeout(csvUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Supabase Edge Function)' },
+        redirect: 'follow'
+      }, 15000);
+
       if (!response.ok) {
         console.error('Fetch failed:', response.status, response.statusText);
-        return new Response(JSON.stringify({ error: `Failed to fetch CSV data: ${response.status} ${response.statusText}` }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: `Failed to fetch data: ${response.status} ${response.statusText}` }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       const lenHeader = response.headers.get('content-length');
       if (lenHeader && Number(lenHeader) > 2_000_000) {
-        return new Response(JSON.stringify({ error: 'CSV too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Response too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const csvText = await response.text();
-      const restoredData = parseCSVData(csvText);
+      const responseText = await response.text();
 
+      // Try to parse as JSON first (Apps Script response)
+      try {
+        const jsonData = JSON.parse(responseText);
+
+        // If it's an Apps Script response with success/data structure
+        if (jsonData.success && jsonData.data) {
+          console.log('Parsed Apps Script JSON response');
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Data imported from Google Sheet successfully.',
+            data: jsonData.data
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        // If it's direct data format
+        if (jsonData.workHoursData) {
+          console.log('Parsed direct JSON data');
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Data imported successfully.',
+            data: jsonData
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      } catch {
+        // Not JSON, try CSV parsing
+        console.log('Response is not JSON, trying CSV parsing');
+      }
+
+      // Fall back to CSV parsing
+      const restoredData = parseCSVData(responseText);
       return new Response(JSON.stringify({ success: true, message: 'Data imported from Google Sheet successfully.', data: restoredData }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Action: fetch - Get data from Apps Script URL (alternative to restore)
+    if (action === 'fetch') {
+      if (!webAppUrl) {
+        return new Response(JSON.stringify({ error: 'Web App URL is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      if (!isHttpsUrl(webAppUrl) || !isAllowedHost(webAppUrl, ['script.google.com', 'script.googleusercontent.com'])) {
+        return new Response(JSON.stringify({ error: 'Invalid webAppUrl host. Only Google Apps Script URLs are allowed.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const url = new URL(webAppUrl);
+      console.log('Fetching from Apps Script host:', url.hostname);
+
+      const response = await fetchWithTimeout(webAppUrl, {
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Supabase Edge Function)' },
+        redirect: 'follow'
+      }, 15000);
+
+      if (!response.ok) {
+        console.error('Apps Script fetch failed:', response.status, response.statusText);
+        return new Response(JSON.stringify({ error: `Failed to fetch from Apps Script: ${response.status}` }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const responseText = await response.text();
+
+      try {
+        const jsonData = JSON.parse(responseText);
+
+        if (jsonData.success && jsonData.data) {
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Data fetched from Apps Script successfully.',
+            data: jsonData.data
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        if (jsonData.workHoursData) {
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Data fetched successfully.',
+            data: jsonData
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        // Return error from Apps Script
+        if (jsonData.error) {
+          return new Response(JSON.stringify({ error: jsonData.error }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      } catch (parseError) {
+        console.error('Failed to parse Apps Script response:', parseError);
+        return new Response(JSON.stringify({ error: 'Invalid response from Apps Script' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      return new Response(JSON.stringify({ error: 'Unexpected response format from Apps Script' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

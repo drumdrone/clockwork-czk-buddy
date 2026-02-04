@@ -1,5 +1,12 @@
 # Google Apps Script Setup for Work Hours Export
 
+> **RECOMMENDED**: For bidirectional sync (export AND import), use the new setup guide:
+> **[GOOGLE_APPS_SCRIPT_BIDIRECTIONAL.md](./GOOGLE_APPS_SCRIPT_BIDIRECTIONAL.md)**
+
+This guide is for one-way export only. For full bidirectional sync, see the recommended guide above.
+
+---
+
 This guide will help you set up a Google Apps Script web app to receive and process work hours data from the Time Tracker application.
 
 ## Step 1: Create a New Google Apps Script Project
