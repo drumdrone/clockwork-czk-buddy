@@ -436,8 +436,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         const startTime = startIdx >= 0 ? values[startIdx] : null;
         const endTime = endIdx >= 0 ? values[endIdx] : null;
         const estimatedEndTime = estEndIdx >= 0 ? values[estEndIdx] : '17:00';
-        const workedHours = workedIdx >= 0 ? parseFloat(values[workedIdx]) || 0 : 0;
-        const earnings = earningsIdx >= 0 ? parseFloat(values[earningsIdx]) || 0 : 0;
+        const workedHours = workedIdx >= 0 ? parseFloat(String(values[workedIdx]).replace(',', '.')) || 0 : 0;
+        const earnings = earningsIdx >= 0 ? parseFloat(String(values[earningsIdx]).replace(',', '.')) || 0 : 0;
         const isDayOff = dayOffIdx >= 0 ? values[dayOffIdx]?.toLowerCase() === 'true' : false;
         const pausedTime = pausedIdx >= 0 ? parseInt(values[pausedIdx]) || 0 : 0;
 
@@ -639,8 +639,8 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         const startTime = startIdx >= 0 ? values[startIdx] : null;
         const endTime = endIdx >= 0 ? values[endIdx] : null;
         const estimatedEndTime = estEndIdx >= 0 ? values[estEndIdx] : '17:00';
-        const workedHours = workedIdx >= 0 ? parseFloat(values[workedIdx]) || 0 : 0;
-        const earnings = earningsIdx >= 0 ? parseFloat(values[earningsIdx]) || 0 : 0;
+        const workedHours = workedIdx >= 0 ? parseFloat(String(values[workedIdx]).replace(',', '.')) || 0 : 0;
+        const earnings = earningsIdx >= 0 ? parseFloat(String(values[earningsIdx]).replace(',', '.')) || 0 : 0;
         const isDayOff = dayOffIdx >= 0 ? values[dayOffIdx]?.toLowerCase() === 'true' : false;
         const pausedTime = pausedIdx >= 0 ? parseInt(values[pausedIdx]) || 0 : 0;
 
@@ -927,10 +927,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         wh = Number.isFinite(parsed) ? parsed : 0;
       }
 
-      console.log(`[${dateKey}] CSV workedHours:`, wh, 'startTime:', r.startTime, 'endTime:', r.endTime);
-
-      // Always compute from times if we have both start and end time
-      const computed = (r.startTime && r.endTime) ? computeWorkedHoursForRecord(r) : (wh > 0 ? wh : 0);
+      // Prefer CSV workedHours if available (it already accounts for breaks);
+      // only compute from times as fallback when workedHours is missing
+      const computed = (wh > 0) ? wh : ((r.startTime && r.endTime) ? computeWorkedHoursForRecord(r) : 0);
 
       console.log(`[${dateKey}] Computed workedHours:`, computed);
 
