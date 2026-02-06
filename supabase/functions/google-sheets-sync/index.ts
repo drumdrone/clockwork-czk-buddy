@@ -241,7 +241,8 @@ function convertToCSV(data: any) {
 
 function normalizeDate(raw: string): string | null {
   if (!raw || typeof raw !== 'string') return null;
-  const s = raw.trim().replace(/^["']|["']$/g, '');
+  // Strip quotes, trim, and remove trailing time component (e.g. " 0:00:00" or " 12:00:00 AM")
+  const s = raw.trim().replace(/^["']|["']$/g, '').replace(/\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i, '').trim();
   if (!s) return null;
 
   const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -267,6 +268,13 @@ function normalizeDate(raw: string): string | null {
     if (a > 12 && b >= 1 && b <= 12) return `${y}-${pad2(b)}-${pad2(a)}`;
     if (b > 12 && a >= 1 && a <= 12) return `${y}-${pad2(a)}-${pad2(b)}`;
     if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return `${y}-${pad2(a)}-${pad2(b)}`;
+  }
+
+  // dd-MM-yyyy or d-M-yyyy (European with dashes)
+  const dashEuMatch = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (dashEuMatch) {
+    const a = Number(dashEuMatch[1]), b = Number(dashEuMatch[2]), y = Number(dashEuMatch[3]);
+    if (b >= 1 && b <= 12 && a >= 1 && a <= 31) return `${y}-${pad2(b)}-${pad2(a)}`;
   }
 
   // Google Sheets serial date number (days since 1899-12-30)
