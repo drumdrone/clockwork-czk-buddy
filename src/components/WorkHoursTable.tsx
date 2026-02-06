@@ -423,10 +423,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         const values = lines[i].split(',').map(v => v.trim());
         if (values.length < 2) continue; // Skip invalid rows
 
-        const date = dateIdx >= 0 ? values[dateIdx] : values[0];
-        if (!date || date.toLowerCase().includes('hourly') || date.toLowerCase().includes('daily') || date.toLowerCase().includes('monthly')) {
+        const rawDate = dateIdx >= 0 ? values[dateIdx] : values[0];
+        if (!rawDate || rawDate.toLowerCase().includes('hourly') || rawDate.toLowerCase().includes('daily') || rawDate.toLowerCase().includes('monthly') || rawDate.toLowerCase().includes('last sync')) {
           continue; // Skip config rows
         }
+        const date = normalizeDate(rawDate) || rawDate;
 
         const startTime = startIdx >= 0 ? values[startIdx] : null;
         const endTime = endIdx >= 0 ? values[endIdx] : null;
@@ -620,10 +621,11 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         const values = lines[i].split(',').map(v => v.trim());
         if (values.length < 2) continue; // Skip invalid rows
 
-        const date = dateIdx >= 0 ? values[dateIdx] : values[0];
-        if (!date || date.toLowerCase().includes('hourly') || date.toLowerCase().includes('daily') || date.toLowerCase().includes('monthly')) {
+        const rawDate = dateIdx >= 0 ? values[dateIdx] : values[0];
+        if (!rawDate || rawDate.toLowerCase().includes('hourly') || rawDate.toLowerCase().includes('daily') || rawDate.toLowerCase().includes('monthly') || rawDate.toLowerCase().includes('last sync')) {
           continue; // Skip config rows
         }
+        const date = normalizeDate(rawDate) || rawDate;
 
         const startTime = startIdx >= 0 ? values[startIdx] : null;
         const endTime = endIdx >= 0 ? values[endIdx] : null;
@@ -798,6 +800,54 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   const parseDateLocal = (s: string) => {
     const [y, m, d] = s.split('-').map(Number);
     return new Date(y, (m || 1) - 1, d || 1);
+  };
+
+  // Normalize date strings from various formats (d.M.yyyy, M/d/yyyy, serial, etc.) to yyyy-MM-dd
+  const normalizeDate = (raw: string): string | null => {
+    if (!raw || typeof raw !== 'string') return null;
+    const s = raw.trim().replace(/^["']|["']$/g, '');
+    if (!s) return null;
+
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+
+    // Already yyyy-MM-dd (or yyyy-M-d)
+    const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      const y = Number(isoMatch[1]), m = Number(isoMatch[2]), d = Number(isoMatch[3]);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${pad2(m)}-${pad2(d)}`;
+      }
+    }
+
+    // Czech/European dot format: d.M.yyyy or dd.MM.yyyy (with optional spaces)
+    const dotMatch = s.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
+    if (dotMatch) {
+      const d = Number(dotMatch[1]), m = Number(dotMatch[2]), y = Number(dotMatch[3]);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${pad2(m)}-${pad2(d)}`;
+      }
+    }
+
+    // Slash format: M/d/yyyy or d/M/yyyy
+    const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+      const a = Number(slashMatch[1]), b = Number(slashMatch[2]), y = Number(slashMatch[3]);
+      // If first > 12, it must be day: d/M/yyyy
+      if (a > 12 && b >= 1 && b <= 12) return `${y}-${pad2(b)}-${pad2(a)}`;
+      // If second > 12, it must be day: M/d/yyyy
+      if (b > 12 && a >= 1 && a <= 12) return `${y}-${pad2(a)}-${pad2(b)}`;
+      // Ambiguous: default to M/d/yyyy (Google Sheets default CSV export)
+      if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return `${y}-${pad2(a)}-${pad2(b)}`;
+    }
+
+    // Google Sheets serial date number (days since 1899-12-30)
+    const num = Number(s);
+    if (Number.isFinite(num) && num > 40000 && num < 60000) {
+      const dt = new Date(Date.UTC(1899, 11, 30 + num));
+      return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+    }
+
+    return null;
   };
 
   // Parse "HH:mm" to minutes since midnight

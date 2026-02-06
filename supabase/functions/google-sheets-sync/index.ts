@@ -239,6 +239,46 @@ function convertToCSV(data: any) {
   return rows;
 }
 
+function normalizeDate(raw: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const s = raw.trim().replace(/^["']|["']$/g, '');
+  if (!s) return null;
+
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+
+  // yyyy-MM-dd
+  const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const y = Number(isoMatch[1]), m = Number(isoMatch[2]), d = Number(isoMatch[3]);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  // Czech/European: d.M.yyyy or dd.MM.yyyy (with optional spaces)
+  const dotMatch = s.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
+  if (dotMatch) {
+    const d = Number(dotMatch[1]), m = Number(dotMatch[2]), y = Number(dotMatch[3]);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  // Slash format: M/d/yyyy or d/M/yyyy
+  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const a = Number(slashMatch[1]), b = Number(slashMatch[2]), y = Number(slashMatch[3]);
+    if (a > 12 && b >= 1 && b <= 12) return `${y}-${pad2(b)}-${pad2(a)}`;
+    if (b > 12 && a >= 1 && a <= 12) return `${y}-${pad2(a)}-${pad2(b)}`;
+    if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return `${y}-${pad2(a)}-${pad2(b)}`;
+  }
+
+  // Google Sheets serial date number (days since 1899-12-30)
+  const num = Number(s);
+  if (Number.isFinite(num) && num > 40000 && num < 60000) {
+    const dt = new Date(Date.UTC(1899, 11, 30 + num));
+    return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+  }
+
+  return null;
+}
+
 function parseCSVData(csvText: string) {
   const lines = csvText.trim().split('\n');
   if (lines.length === 0) {
@@ -284,8 +324,8 @@ function parseCSVData(csvText: string) {
     const row = rows[i];
     if (row.length < 7 || !row[0] || row[0] === '') continue;
 
-    const date = row[0];
-    if (!date.match(/\d{4}-\d{2}-\d{2}/)) continue;
+    const date = normalizeDate(row[0]);
+    if (!date) continue;
 
     const interrupts = row[8]
       ? row[8].split(';').map((interrupt: string) => {
