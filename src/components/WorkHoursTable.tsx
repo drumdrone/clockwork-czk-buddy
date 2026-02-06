@@ -580,10 +580,23 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
     setIsSyncing(true);
     try {
-      console.log('Fetching CSV from URL:', googleSheetId);
+      // Auto-fix common Google Sheets URL mistakes
+      let csvUrl = googleSheetId.trim();
+      // Fix /pubhtml to /pub with CSV output
+      if (csvUrl.includes('/pubhtml')) {
+        csvUrl = csvUrl.replace('/pubhtml', '/pub');
+        if (!csvUrl.includes('output=csv')) {
+          csvUrl += (csvUrl.includes('?') ? '&' : '?') + 'output=csv';
+        }
+      }
+      // Ensure output=csv is present
+      if (csvUrl.includes('/pub') && !csvUrl.includes('output=csv')) {
+        csvUrl += (csvUrl.includes('?') ? '&' : '?') + 'output=csv';
+      }
+      console.log('Fetching CSV from URL:', csvUrl);
 
       // Fetch CSV directly from URL (works without Supabase)
-      const response = await fetch(googleSheetId);
+      const response = await fetch(csvUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch CSV: ${response.statusText}`);
       }
