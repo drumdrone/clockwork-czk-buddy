@@ -394,7 +394,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       }
 
       // Parse CSV - detect columns dynamically from headers
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase());
       console.log('CSV Headers:', headers);
 
       const importedData: { [key: string]: DayRecord } = {};
@@ -420,7 +420,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       console.log('Column indices:', { dateIdx, startIdx, endIdx, estEndIdx, workedIdx, earningsIdx, dayOffIdx, pausedIdx });
 
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
+        const values = parseCSVRow(lines[i]);
         if (values.length < 2) continue; // Skip invalid rows
 
         const rawDate = dateIdx >= 0 ? values[dateIdx] : values[0];
@@ -596,7 +596,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
       }
 
       // Parse CSV - detect columns dynamically from headers
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase());
       console.log('CSV Headers:', headers);
 
       const importedData: { [key: string]: DayRecord } = {};
@@ -623,7 +623,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
       const skippedRows: string[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
+        const values = parseCSVRow(lines[i]);
         if (values.length < 2) { skippedRows.push(`Row ${i + 1}: too few columns`); continue; }
 
         const rawDate = dateIdx >= 0 ? values[dateIdx] : values[0];
@@ -808,6 +808,26 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
     return `${h}h ${m}m`;
+  };
+
+  // Parse a single CSV line respecting quoted fields (commas inside quotes)
+  const parseCSVRow = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
   };
 
   // Helper to parse YYYY-MM-DD as local date
