@@ -48,10 +48,13 @@ const DataManager = () => {
   const [editValue, setEditValue] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
-  const [syncUrl, setSyncUrl] = useState('');
-  const [syncInterval, setSyncInterval] = useState(15);
-  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
-  const [exportUrl, setExportUrl] = useState('');
+  const [syncUrl, setSyncUrl] = useState(() => localStorage.getItem('dm_syncUrl') || '');
+  const [syncInterval, setSyncInterval] = useState(() => {
+    const saved = localStorage.getItem('dm_syncInterval');
+    return saved ? parseInt(saved) : 15;
+  });
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => localStorage.getItem('dm_autoSyncEnabled') === 'true');
+  const [exportUrl, setExportUrl] = useState(() => localStorage.getItem('dm_exportUrl') || '');
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,6 +100,11 @@ const DataManager = () => {
         setSyncInterval(updatedSettings.sync_interval_minutes || 15);
         setAutoSyncEnabled(updatedSettings.auto_sync_enabled || false);
         setExportUrl(updatedSettings.export_url || '');
+        // Keep localStorage in sync with Supabase data
+        localStorage.setItem('dm_syncUrl', updatedSettings.csv_sync_url || '');
+        localStorage.setItem('dm_exportUrl', updatedSettings.export_url || '');
+        localStorage.setItem('dm_syncInterval', (updatedSettings.sync_interval_minutes || 15).toString());
+        localStorage.setItem('dm_autoSyncEnabled', (updatedSettings.auto_sync_enabled || false).toString());
       }
     } catch (error: any) {
       toast({
@@ -489,6 +497,12 @@ const DataManager = () => {
 
   // Save sync settings
   const saveSyncSettings = async () => {
+    // Always persist to localStorage as fallback
+    localStorage.setItem('dm_syncUrl', syncUrl);
+    localStorage.setItem('dm_exportUrl', exportUrl);
+    localStorage.setItem('dm_syncInterval', syncInterval.toString());
+    localStorage.setItem('dm_autoSyncEnabled', autoSyncEnabled.toString());
+
     const updatedSettings = {
       ...userSettings,
       csv_sync_url: syncUrl,
@@ -499,7 +513,7 @@ const DataManager = () => {
 
     await updateUserSettings(updatedSettings);
     setShowSyncSettings(false);
-    
+
     toast({
       title: "Success",
       description: "Sync settings saved",
