@@ -12,7 +12,7 @@ import TimeSparkline from './TimeSparkline';
 import TimeInput from './TimeInput';
 import { format, getDaysInMonth, startOfMonth, addDays, endOfMonth, eachDayOfInterval, isWeekend, isFuture, isToday } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+// Supabase removed - using Convex + localStorage
 
 interface TimeInterval {
   start: string;
@@ -513,45 +513,42 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   const backupToGoogleSheets = async () => {
     setIsBackingUp(true);
     try {
-      const payload = {
-        workHoursData: records,
-        hourlyRate,
-        dailyHoursGoal,
-        monthlyGoal: parseFloat(localStorage.getItem('monthlyGoal') || '50000'),
-      };
+      // Generate CSV locally
+      const headers = ['Date', 'Start Time', 'End Time', 'Estimated End', 'Worked Hours', 'Earnings', 'Day Off', 'Paused Time'];
+      const rows = Object.entries(records)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, record]) => [
+          date,
+          record.startTime || '',
+          record.endTime || '',
+          record.estimatedEndTime || '',
+          record.workedHours.toFixed(2),
+          record.earnings.toFixed(0),
+          record.isDayOff ? 'true' : 'false',
+          (record.pausedTime || 0).toString()
+        ].join(','));
 
-      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
-        body: {
-          action: 'backup',
-          data: payload
-        }
+      const csvData = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `work-hours-backup-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'CSV exported',
+        description: 'CSV file downloaded. Import this file into your Google Sheet.'
       });
-
-      if (error) throw error;
-
-      if (data?.csvData) {
-        // Create and download CSV file
-        const blob = new Blob([data.csvData], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `work-hours-backup-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        toast({ 
-          title: 'CSV exported', 
-          description: 'CSV file downloaded. Import this file into your Google Sheet.' 
-        });
-      }
     } catch (error: any) {
       console.error('Export failed:', error);
-      toast({ 
-        title: 'Export failed', 
+      toast({
+        title: 'Export failed',
         description: error.message || 'Failed to generate CSV export.',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
     } finally {
       setIsBackingUp(false);

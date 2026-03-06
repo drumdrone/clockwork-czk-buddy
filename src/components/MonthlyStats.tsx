@@ -11,7 +11,6 @@ import { Download, Calendar, Clock, CreditCard, TrendingUp, Target, Edit2, Uploa
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, startOfYear } from 'date-fns';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -146,10 +145,9 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
 
     setExporting(true);
     try {
-      // Convert current month's records to the format expected by the edge function
       const dailyStats = getDailyStats();
       const workHoursData: { [key: string]: any } = {};
-      
+
       dailyStats.forEach(record => {
         workHoursData[record.date] = {
           startTime: record.startTime,
@@ -163,29 +161,27 @@ const MonthlyStats: React.FC<MonthlyStatsProps> = ({ records, hourlyRate, select
         };
       });
 
-      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
-        body: {
-          action: 'backup',
-          exportUrl: exportUrl,
-          data: {
-            hourlyRate: hourlyRate,
-            dailyGoal: 8,
-            monthlyGoal: monthlyGoal,
-            workHoursData: workHoursData
-          }
+      const exportData = {
+        action: 'backup',
+        data: {
+          hourlyRate: hourlyRate,
+          dailyGoal: 8,
+          monthlyGoal: monthlyGoal,
+          workHoursData: workHoursData
         }
+      };
+
+      await fetch(exportUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportData),
       });
 
-      if (error) throw error;
-
-      if (data?.success) {
-        toast({
-          title: "Export Successful",
-          description: `Exported ${dailyStats.length} records to Google Sheets`,
-        });
-      } else {
-        throw new Error(data?.error || 'Export failed');
-      }
+      toast({
+        title: "Export Successful",
+        description: `Exported ${dailyStats.length} records to Google Sheets`,
+      });
     } catch (error: any) {
       console.error('Export error:', error);
       toast({
