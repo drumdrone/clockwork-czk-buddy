@@ -297,9 +297,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
   const updateStartTime = (date: string, time: string) => {
     const record = records[date];
-    if (record.isWorking) return; // Don't allow editing while timer is running
+    if (record?.isWorking) return; // Don't allow editing while timer is running
 
-    const workedHours = time && record.endTime ? calculateWorkedHours(time, record.endTime, record.pausedTime || 0) : 0;
+    const workedHours = time && record?.endTime ? calculateWorkedHours(time, record.endTime, record?.pausedTime || 0) : 0;
     const earnings = workedHours * hourlyRate;
 
     const updatedRecords = {
@@ -316,9 +316,9 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
 
   const updateEndTime = (date: string, time: string) => {
     const record = records[date];
-    if (record.isWorking) return; // Don't allow editing while timer is running
+    if (record?.isWorking) return; // Don't allow editing while timer is running
 
-    const workedHours = record.startTime && time ? calculateWorkedHours(record.startTime, time, record.pausedTime || 0) : 0;
+    const workedHours = record?.startTime && time ? calculateWorkedHours(record.startTime, time, record?.pausedTime || 0) : 0;
     const earnings = workedHours * hourlyRate;
 
     const updatedRecords = {
@@ -667,10 +667,17 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
         throw new Error('No valid data found in CSV');
       }
 
-      console.log(`CSV sync: ${lines.length} total lines, ${Object.keys(importedData).length} records imported, ${skippedRows.length} rows skipped`);
+      // Log date range for debugging
+      const importedDates = Object.keys(importedData).sort();
+      console.log(`CSV sync: ${lines.length} total lines, ${importedDates.length} records imported, ${skippedRows.length} rows skipped`);
+      console.log(`CSV date range: ${importedDates[0]} to ${importedDates[importedDates.length - 1]}`);
+
       const processedData = recomputeImportedData(importedData, hourlyRate);
-      setRecords(processedData);
-      localStorage.setItem('workHoursData', JSON.stringify(processedData));
+
+      // Merge: CSV data takes precedence, existing records for other dates are preserved
+      const mergedData = { ...records, ...processedData };
+      setRecords(mergedData);
+      localStorage.setItem('workHoursData', JSON.stringify(mergedData));
       localStorage.setItem('lastSyncTime', new Date().toISOString());
 
       toast({
@@ -1201,10 +1208,20 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
               <TableBody>
                 {Array.from({ length: daysInMonth }, (_, i) => {
                   const date = format(addDays(monthStart, i), 'yyyy-MM-dd');
-                  const record = records[date];
+                  const record = records[date] || {
+                    date,
+                    startTime: null,
+                    endTime: null,
+                    estimatedEndTime: '17:00',
+                    isWorking: false,
+                    workedHours: 0,
+                    earnings: 0,
+                    isPaused: false,
+                    pausedTime: 0,
+                    interrupts: [],
+                    isDayOff: false,
+                  };
                   const isTodayRow = format(new Date(), 'yyyy-MM-dd') === date;
-                  
-                  if (!record) return null;
 
                   return (
                     <TableRow key={date} className={isTodayRow ? 'bg-accent/30' : ''}>
