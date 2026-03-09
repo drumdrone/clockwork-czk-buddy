@@ -59,7 +59,7 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
   const [googleSheetId, setGoogleSheetId] = useState(() => {
     const saved = localStorage.getItem('googleSheetId');
-    return saved || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT_JmZVro__21S9k6ZE3WbwEvr-O9MwhOMesGAS_8hVzejC-RT8hpjouIXBBqOPJr-pjFTvYG6LiWsm/pub?gid=0&single=true&output=csv';
+    return saved || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEdueXgVNylHpqR4Vz6EPDvPU9qxX3pn7KxdQ0dsN3apnk5MKtVhJZjbyMySxKT69DS2JLLFM8fVH4/pub?gid=0&single=true&output=csv';
   });
 
   const [googleAppsScriptUrl, setGoogleAppsScriptUrl] = useState(() => {
@@ -953,11 +953,14 @@ const WorkHoursTable: React.FC<WorkHoursTableProps> = ({
   const remainingHours = remainingEarnings / hourlyRate;
   
   // Calculate working days from today to end of month (Monday-Friday only)
+  const today = new Date();
   const endOfCurrentMonth = endOfMonth(currentMonth);
-  const remainingWorkingDays = eachDayOfInterval({
-    start: new Date(),
-    end: endOfCurrentMonth
-  }).filter(day => !isWeekend(day));
+  const remainingWorkingDays = today <= endOfCurrentMonth
+    ? eachDayOfInterval({
+        start: today,
+        end: endOfCurrentMonth
+      }).filter(day => !isWeekend(day))
+    : [];
   // Exclude days marked as off
   const remainingAvailableDays = remainingWorkingDays.filter(day => {
     const key = format(day, 'yyyy-MM-dd');

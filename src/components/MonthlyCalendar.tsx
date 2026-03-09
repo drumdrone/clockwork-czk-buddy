@@ -89,10 +89,13 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ selectedMonth, setSel
   const remainingHours = remainingEarnings / hourlyRate;
   
   // Calculate working days from today to end of month (Monday-Friday only)
-  const remainingWorkingDays = eachDayOfInterval({
-    start: new Date(),
-    end: monthEnd
-  }).filter(day => !isWeekend(day) && (isFuture(day) || isToday(day)));
+  const today = new Date();
+  const remainingWorkingDays = today <= monthEnd
+    ? eachDayOfInterval({
+        start: today,
+        end: monthEnd
+      }).filter(day => !isWeekend(day) && (isFuture(day) || isToday(day)))
+    : [];
   
   const hoursPerWorkingDay = remainingWorkingDays.length > 0 ? remainingHours / remainingWorkingDays.length : 0;
 
